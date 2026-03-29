@@ -49,7 +49,7 @@ class BriivFan(FanEntity):
             model="Air Purifier",
         )
         self._attr_is_on = False
-        self._attr_percentage = None
+        self._attr_percentage = 0
         self._attr_preset_mode = None
         self._fan_speed = 0
         self._model_updated = False
