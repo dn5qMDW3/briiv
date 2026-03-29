@@ -48,7 +48,7 @@ class BriivSensor(SensorEntity):
             identifiers={(DOMAIN, serial_number)},
             name=f"Briiv {serial_number}",
             manufacturer="Briiv",
-            model="Air Filter",
+            model="Air Purifier",
         )
         self._attr_native_value = None
 

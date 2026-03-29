@@ -1,4 +1,18 @@
 {
+  "entity": {
+    "sensor": {
+      "temperature": { "name": "Temperature" },
+      "humidity": { "name": "Humidity" },
+      "pm1": { "name": "PM1" },
+      "pm2_5": { "name": "PM2.5" },
+      "pm4": { "name": "PM4" },
+      "pm10": { "name": "PM10" },
+      "voc": { "name": "VOC" },
+      "carbon_monoxide": { "name": "Carbon monoxide" },
+      "nitrogen_oxides": { "name": "Nitrogen oxides" },
+      "boost_end_time": { "name": "Boost time remaining" }
+    }
+  },
   "config": {
     "flow_title": "Briiv air purifier {serial_number}",
     "step": {

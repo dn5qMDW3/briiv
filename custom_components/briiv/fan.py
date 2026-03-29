@@ -29,6 +29,7 @@ class BriivFan(FanEntity):
     _attr_has_entity_name = True
     _attr_name = None
     _attr_preset_modes = [PRESET_MODE_BOOST]
+    _attr_speed_count = 4
     _attr_supported_features = (
         FanEntityFeature.SET_SPEED
         | FanEntityFeature.PRESET_MODE
@@ -45,12 +46,13 @@ class BriivFan(FanEntity):
             identifiers={(DOMAIN, serial_number)},
             name=f"Briiv {serial_number}",
             manufacturer="Briiv",
-            model="Air Filter",
+            model="Air Purifier",
         )
         self._attr_is_on = False
         self._attr_percentage = None
         self._attr_preset_mode = None
         self._fan_speed = 0
+        self._model_updated = False
 
     async def async_added_to_hass(self) -> None:
         """Register callback when entity is added to hass."""
@@ -59,6 +61,16 @@ class BriivFan(FanEntity):
     async def _handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from device."""
         update_state = False
+
+        if not self._model_updated and "is_briiv_pro" in data:
+            model = "Briiv Pro" if data["is_briiv_pro"] else "Briiv"
+            self._attr_device_info = DeviceInfo(
+                identifiers={(DOMAIN, self._serial)},
+                name=f"Briiv {self._serial}",
+                manufacturer="Briiv",
+                model=model,
+            )
+            self._model_updated = True
 
         if "power" in data:
             power_state = bool(data["power"])

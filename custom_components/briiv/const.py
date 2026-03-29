@@ -15,6 +15,7 @@ from homeassistant.const import (
     PERCENTAGE,
     Platform,
     UnitOfTemperature,
+    UnitOfTime,
 )
 
 DOMAIN: Final = "briiv"
@@ -58,6 +59,12 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
     ),
     SensorEntityDescription(
+        key="pm4",
+        translation_key="pm4",
+        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    SensorEntityDescription(
         key="pm10",
         translation_key="pm10",
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
@@ -83,6 +90,13 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         translation_key="nitrogen_oxides",
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
         device_class=SensorDeviceClass.NITROUS_OXIDE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    SensorEntityDescription(
+        key="boost_end_time",
+        translation_key="boost_end_time",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.MEASUREMENT,
     ),
 )
