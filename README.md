@@ -1,8 +1,10 @@
 # Briiv Air Purifier Integration for Home Assistant
 
-[![HACS Validate](https://github.com/FiveCreate/Briiv_HA/actions/workflows/validate.yml/badge.svg)](https://github.com/FiveCreate/Briiv_HA/actions/workflows/validate.yml)
+[![HACS Validate](https://github.com/dn5qMDW3/briiv/actions/workflows/validate.yml/badge.svg)](https://github.com/dn5qMDW3/briiv/actions/workflows/validate.yml)
 
 Custom Home Assistant integration for [Briiv](https://briiv.com/) air purifiers. Communicates locally over UDP -- no cloud required.
+
+Originally created by [@FiveCreate](https://github.com/FiveCreate) ([Briiv_HA](https://github.com/FiveCreate/Briiv_HA)).
 
 ## Features
 

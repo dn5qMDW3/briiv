@@ -1,12 +1,12 @@
 {
   "domain": "briiv",
   "name": "Briiv",
-  "codeowners": ["@FiveCreate"],
+  "codeowners": ["@dn5qMDW3"],
   "config_flow": true,
-  "documentation": "https://github.com/FiveCreate/Briiv_HA",
+  "documentation": "https://github.com/dn5qMDW3/briiv",
   "integration_type": "device",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/FiveCreate/Briiv_HA/issues",
+  "issue_tracker": "https://github.com/dn5qMDW3/briiv/issues",
   "requirements": [],
-  "version": "1.0.1"
+  "version": "1.0.2"
 }
