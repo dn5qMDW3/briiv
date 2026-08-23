@@ -37,5 +37,6 @@ Originally created by [@FiveCreate](https://github.com/FiveCreate) ([Briiv_HA](h
 
 ## Requirements
 
+- Home Assistant 2024.8.0 or newer
 - Briiv air purifier on the same local network as Home Assistant
 - UDP port 3334 must be accessible between Home Assistant and the Briiv device

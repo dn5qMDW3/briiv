@@ -26,11 +26,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Update manifest version from tag
+      - name: Verify manifest version matches tag
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          jq --arg v "$VERSION" '.version = $v' custom_components/briiv/manifest.json > tmp.json
-          mv tmp.json custom_components/briiv/manifest.json
+          MANIFEST_VERSION="$(jq -r '.version' custom_components/briiv/manifest.json)"
+          if [ "$VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match manifest version $MANIFEST_VERSION."
+            echo "::error::Bump custom_components/briiv/manifest.json and commit it before tagging."
+            exit 1
+          fi
 
       - name: Create zip for release
         run: |
