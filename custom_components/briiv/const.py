@@ -41,10 +41,9 @@ PLATFORMS: Final = [Platform.FAN, Platform.SENSOR]
 
 PRESET_MODE_BOOST: Final = "boost"
 
-# The firmware reports "voc" and "nox" alongside the particulate readings. Both
-# are typed as densities here because that is how earlier versions of this
-# integration exposed them; if the device turns out to report Sensirion-style
-# unitless indices (1-500) instead, the device class and unit must be dropped.
+# The firmware's only sensor driver is a Sensirion SEN5x (main/sensors/SEN5X in
+# the vendor firmware), which reports VOC and NOx as unitless indices from 1 to
+# 500 rather than densities, so those two carry no device class or unit.
 SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="temp",
@@ -91,9 +90,8 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="voc",
         translation_key="voc",
-        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
-        device_class=SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
     ),
     SensorEntityDescription(
         key="co",
@@ -105,9 +103,8 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="nox",
         translation_key="nitrogen_oxides",
-        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
-        device_class=SensorDeviceClass.NITROUS_OXIDE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
     ),
     SensorEntityDescription(
         key="boost_end_time",

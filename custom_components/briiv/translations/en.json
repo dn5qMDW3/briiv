@@ -7,9 +7,9 @@
       "pm2_5": { "name": "PM2.5" },
       "pm4": { "name": "PM4" },
       "pm10": { "name": "PM10" },
-      "voc": { "name": "VOC" },
+      "voc": { "name": "VOC index" },
       "carbon_monoxide": { "name": "Carbon monoxide" },
-      "nitrogen_oxides": { "name": "Nitrogen oxides" },
+      "nitrogen_oxides": { "name": "NOx index" },
       "boost_end_time": { "name": "Boost time remaining" }
     }
   },
