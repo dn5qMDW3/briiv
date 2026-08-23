@@ -19,16 +19,32 @@ from homeassistant.const import (
 )
 
 DOMAIN: Final = "briiv"
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__package__)
 
-DISCOVERY_TIMEOUT = 15
 DEFAULT_PORT: Final = 3334
+DISCOVERY_DURATION: Final = 15
+# Once a device has answered, stop discovery early if nothing new shows up.
+DISCOVERY_SETTLE_TIME: Final = 3
+
+# Devices broadcast their state unprompted. Entities are marked unavailable
+# when nothing has been heard from a device for this long.
+DEVICE_TIMEOUT: Final = 180
+
 CONF_SERIAL_NUMBER: Final = "serial_number"
+CONF_IS_PRO: Final = "is_pro"
 
-PLATFORMS = [Platform.FAN, Platform.SENSOR]
+MANUFACTURER: Final = "Briiv"
+MODEL_BRIIV: Final = "Briiv"
+MODEL_BRIIV_PRO: Final = "Briiv Pro"
 
-PRESET_MODE_BOOST = "boost"
+PLATFORMS: Final = [Platform.FAN, Platform.SENSOR]
 
+PRESET_MODE_BOOST: Final = "boost"
+
+# The firmware reports "voc" and "nox" alongside the particulate readings. Both
+# are typed as densities here because that is how earlier versions of this
+# integration exposed them; if the device turns out to report Sensirion-style
+# unitless indices (1-500) instead, the device class and unit must be dropped.
 SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="temp",
@@ -62,6 +78,7 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         key="pm4",
         translation_key="pm4",
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        device_class=SensorDeviceClass.PM4,
         state_class=SensorStateClass.MEASUREMENT,
     ),
     SensorEntityDescription(

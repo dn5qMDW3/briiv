@@ -1,0 +1,36 @@
+name: Lint
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install ruff
+        run: pip install ruff==0.16.4
+      - name: Lint
+        run: ruff check --output-format=github custom_components
+      - name: Check formatting
+        run: ruff format --check custom_components
+
+  translations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify translations/en.json matches strings.json
+        run: |
+          # Home Assistant only reads translations/<lang>.json at runtime;
+          # strings.json is the source of truth for the English copy.
+          if ! diff -u \
+            custom_components/briiv/strings.json \
+            custom_components/briiv/translations/en.json; then
+            echo "::error::translations/en.json is out of sync with strings.json"
+            exit 1
+          fi

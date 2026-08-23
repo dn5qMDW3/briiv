@@ -6,15 +6,22 @@ import asyncio
 from collections.abc import Callable, Coroutine
 import contextlib
 import json
-import logging
 import socket
+import time
 from typing import Any, ClassVar
 
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import DEFAULT_PORT, DOMAIN
+from .const import (
+    DEFAULT_PORT,
+    DEVICE_TIMEOUT,
+    DISCOVERY_DURATION,
+    DISCOVERY_SETTLE_TIME,
+    LOGGER,
+)
 
-LOGGER = logging.getLogger(f"homeassistant.components.{DOMAIN}.api")
+type DataCallback = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
+type AvailabilityCallback = Callable[[], None]
 
 
 class BriivError(HomeAssistantError):
@@ -53,7 +60,12 @@ class BriivCommands:
 
 
 class BriivAPI:
-    """API class to handle UDP communication with Briiv devices."""
+    """API class to handle UDP communication with Briiv devices.
+
+    Briiv devices broadcast their state to a single well known UDP port, so all
+    config entries share one socket and one read loop. The class level state
+    below is that shared listener; per instance state tracks a single device.
+    """
 
     _instances: ClassVar[dict[str, BriivAPI]] = {}
     _shared_socket: ClassVar[socket.socket | None] = None
@@ -72,10 +84,29 @@ class BriivAPI:
         self.host = host
         self.port = port
         self.serial_number = serial_number
-        self.callbacks: list[Callable[[dict[str, Any]], Coroutine[Any, Any, None]]] = []
+        self.callbacks: list[DataCallback] = []
+        self.last_data: dict[str, Any] | None = None
+        self.last_seen: float | None = None
+
+        self._available = False
+        self._availability_callbacks: list[AvailabilityCallback] = []
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._stale_timer: asyncio.TimerHandle | None = None
 
         if serial_number:
             self._instances[serial_number] = self
+
+    @property
+    def available(self) -> bool:
+        """Return whether the device has been heard from recently."""
+        return self._available
+
+    @property
+    def seconds_since_last_packet(self) -> float | None:
+        """Return how long ago the last packet arrived, if ever."""
+        if self.last_seen is None:
+            return None
+        return time.monotonic() - self.last_seen
 
     async def send_command(self, command: dict[str, Any]) -> None:
         """Send a command to the Briiv device."""
@@ -94,7 +125,7 @@ class BriivAPI:
             await asyncio.get_running_loop().sock_sendto(
                 self._shared_socket, data, dest_addr
             )
-        except (OSError, json.JSONDecodeError) as err:
+        except OSError as err:
             raise BriivError(f"Failed to send command: {err}") from err
 
     async def set_power(self, state: bool) -> None:
@@ -115,9 +146,58 @@ class BriivAPI:
         """Set boost mode."""
         if not self.serial_number:
             raise BriivError("Serial number not set")
-        await self.send_command(
-            BriivCommands.boost_command(self.serial_number, boost)
-        )
+        await self.send_command(BriivCommands.boost_command(self.serial_number, boost))
+
+    def register_callback(self, callback: DataCallback) -> Callable[[], None]:
+        """Register a callback for data updates and return an unsubscriber."""
+        self.callbacks.append(callback)
+
+        def _unsubscribe() -> None:
+            if callback in self.callbacks:
+                self.callbacks.remove(callback)
+
+        return _unsubscribe
+
+    def register_availability_callback(
+        self, callback: AvailabilityCallback
+    ) -> Callable[[], None]:
+        """Register a callback for availability changes."""
+        self._availability_callbacks.append(callback)
+
+        def _unsubscribe() -> None:
+            if callback in self._availability_callbacks:
+                self._availability_callbacks.remove(callback)
+
+        return _unsubscribe
+
+    def _set_available(self, available: bool) -> None:
+        """Update availability and notify listeners when it changes."""
+        if self._available == available:
+            return
+
+        self._available = available
+        if not available and self.serial_number:
+            LOGGER.debug(
+                "No data from %s for %s seconds, marking unavailable",
+                self.serial_number,
+                DEVICE_TIMEOUT,
+            )
+
+        for callback in list(self._availability_callbacks):
+            callback()
+
+    def _mark_seen(self) -> None:
+        """Record that a packet arrived and restart the staleness timer."""
+        self.last_seen = time.monotonic()
+
+        if self._stale_timer is not None:
+            self._stale_timer.cancel()
+        if self._loop is not None:
+            self._stale_timer = self._loop.call_later(
+                DEVICE_TIMEOUT, self._set_available, False
+            )
+
+        self._set_available(True)
 
     @classmethod
     def _create_and_bind_socket(cls) -> socket.socket:
@@ -129,29 +209,48 @@ class BriivAPI:
 
         try:
             sock.bind(("0.0.0.0", DEFAULT_PORT))
-        except OSError:
-            try:
-                sock.bind(("127.0.0.1", DEFAULT_PORT))
-            except OSError as err:
-                sock.close()
-                raise BriivError(f"Failed to bind socket: {err}") from err
+        except OSError as err:
+            sock.close()
+            raise BriivError(f"Failed to bind UDP port {DEFAULT_PORT}: {err}") from err
 
         sock.setblocking(False)
         return sock
 
     @classmethod
     async def start_shared_listener(cls, loop: asyncio.AbstractEventLoop) -> None:
-        """Start a shared UDP listener for all instances."""
+        """Start the shared UDP listener used by all instances."""
         if cls._is_listening:
             return
 
-        try:
-            cls._shared_socket = cls._create_and_bind_socket()
-            cls._shared_read_task = asyncio.create_task(cls._shared_read_loop(loop))
-            cls._is_listening = True
-        except OSError as err:
-            cls.cleanup_shared_socket()
-            raise BriivError(f"Failed to start listener: {err}") from err
+        cls._shared_socket = cls._create_and_bind_socket()
+        cls._is_listening = True
+        cls._shared_read_task = loop.create_task(cls._shared_read_loop(loop))
+
+    @classmethod
+    async def stop_shared_listener(cls) -> None:
+        """Stop the shared UDP listener and release the socket."""
+        cls._is_listening = False
+
+        task = cls._shared_read_task
+        cls._shared_read_task = None
+        if task is not None and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+        cls._cleanup_shared_socket()
+
+    @classmethod
+    def _cleanup_shared_socket(cls) -> None:
+        """Close the shared socket and forget cached device addresses."""
+        if cls._shared_socket:
+            try:
+                cls._shared_socket.close()
+            except OSError as err:
+                LOGGER.debug("Error closing shared socket: %s", err)
+            finally:
+                cls._shared_socket = None
+        cls._device_addresses.clear()
 
     @classmethod
     async def _handle_device_data(
@@ -164,21 +263,24 @@ class BriivAPI:
 
         cls._device_addresses[serial] = addr
 
-        if serial not in cls._discovered_devices:
-            cls._discovered_devices[serial] = {
-                "host": addr[0],
-                "serial_number": serial,
-                "is_pro": bool(json_data.get("is_briiv_pro", 0)),
-            }
+        device = cls._discovered_devices.setdefault(
+            serial, {"serial_number": serial, "is_pro": False}
+        )
+        device["host"] = addr[0]
+        if "is_briiv_pro" in json_data:
+            device["is_pro"] = bool(json_data["is_briiv_pro"])
 
-        if serial in cls._instances:
-            instance = cls._instances[serial]
-            callback_tasks = [
-                asyncio.create_task(callback(json_data))
-                for callback in instance.callbacks
-            ]
-            if callback_tasks:
-                await asyncio.gather(*callback_tasks, return_exceptions=True)
+        instance = cls._instances.get(serial)
+        if instance is None:
+            return
+
+        instance.last_data = json_data
+        instance._mark_seen()
+
+        if callback_tasks := [
+            asyncio.create_task(callback(json_data)) for callback in instance.callbacks
+        ]:
+            await asyncio.gather(*callback_tasks, return_exceptions=True)
 
     @classmethod
     async def _shared_read_loop(cls, loop: asyncio.AbstractEventLoop) -> None:
@@ -189,7 +291,7 @@ class BriivAPI:
                 try:
                     json_data = json.loads(data.decode())
                     await cls._handle_device_data(json_data, addr)
-                except json.JSONDecodeError:
+                except (UnicodeDecodeError, json.JSONDecodeError):
                     LOGGER.warning("Error decoding JSON from %s", addr[0])
             except (BlockingIOError, ConnectionError):
                 await asyncio.sleep(0.1)
@@ -200,69 +302,55 @@ class BriivAPI:
                 await asyncio.sleep(1)
 
     @classmethod
-    async def discover(cls, timeout: int = 15) -> list[dict[str, Any]]:
-        """Discover Briiv devices on the network using shared socket."""
+    async def discover(cls, duration: int = DISCOVERY_DURATION) -> list[dict[str, Any]]:
+        """Discover Briiv devices on the network.
+
+        Reuses the shared listener when config entries are already loaded, and
+        otherwise starts one for the duration of the discovery only.
+        """
         cls._discovered_devices.clear()
+        loop = asyncio.get_running_loop()
 
-        if not cls._shared_socket:
-            try:
-                cls._shared_socket = cls._create_and_bind_socket()
-            except OSError as err:
-                LOGGER.error("Failed to create discovery socket: %s", err)
-                return []
-
-        if not cls._is_listening:
-            cls._shared_read_task = asyncio.create_task(
-                cls._shared_read_loop(asyncio.get_running_loop())
-            )
-            cls._is_listening = True
+        started_listener = not cls._is_listening
+        if started_listener:
+            await cls.start_shared_listener(loop)
 
         try:
-            await asyncio.sleep(timeout)
+            deadline = loop.time() + duration
+            settle_deadline: float | None = None
+            seen = 0
+
+            while loop.time() < deadline:
+                await asyncio.sleep(0.25)
+
+                if len(cls._discovered_devices) != seen:
+                    seen = len(cls._discovered_devices)
+                    settle_deadline = loop.time() + DISCOVERY_SETTLE_TIME
+                elif settle_deadline is not None and loop.time() >= settle_deadline:
+                    break
+
             return list(cls._discovered_devices.values())
-        except (TimeoutError, OSError) as err:
-            LOGGER.error("Network error during discovery: %s", err)
-            return []
+        finally:
+            if started_listener:
+                await cls.stop_shared_listener()
 
     async def start_listening(self, loop: asyncio.AbstractEventLoop) -> None:
         """Start listening using the shared socket."""
+        self._loop = loop
         await self.start_shared_listener(loop)
 
-    def register_callback(
-        self, callback: Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
-    ) -> None:
-        """Register callback for data updates."""
-        if callback not in self.callbacks:
-            self.callbacks.append(callback)
-
-    def remove_callback(
-        self, callback: Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
-    ) -> None:
-        """Remove callback from updates."""
-        if callback in self.callbacks:
-            self.callbacks.remove(callback)
-
-    @classmethod
-    def cleanup_shared_socket(cls) -> None:
-        """Clean up shared socket resources."""
-        if cls._shared_socket:
-            try:
-                cls._shared_socket.close()
-            except OSError as err:
-                LOGGER.error("Error closing shared socket: %s", err)
-            finally:
-                cls._shared_socket = None
-        cls._is_listening = False
-        cls._device_addresses.clear()
-
     async def stop_listening(self) -> None:
-        """Stop listening and clean up resources."""
-        if self.serial_number in self._instances:
+        """Stop listening and release resources owned by this instance."""
+        if self._stale_timer is not None:
+            self._stale_timer.cancel()
+            self._stale_timer = None
+
+        self._set_available(False)
+
+        # Only drop the registration if it still points at this instance; a
+        # reload may already have installed its replacement.
+        if self.serial_number and self._instances.get(self.serial_number) is self:
             del self._instances[self.serial_number]
 
         if not self._instances:
-            if self._shared_read_task and not self._shared_read_task.done():
-                self._shared_read_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self._shared_read_task
-            self.cleanup_shared_socket()
+            await self.stop_shared_listener()

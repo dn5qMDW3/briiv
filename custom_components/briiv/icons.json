@@ -1,0 +1,18 @@
+{
+  "entity": {
+    "sensor": {
+      "pm4": {
+        "default": "mdi:molecule"
+      },
+      "voc": {
+        "default": "mdi:air-filter"
+      },
+      "nitrogen_oxides": {
+        "default": "mdi:molecule"
+      },
+      "boost_end_time": {
+        "default": "mdi:timer-sand"
+      }
+    }
+  }
+}

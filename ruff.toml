@@ -1,0 +1,62 @@
+line-length = 88
+target-version = "py313"
+
+[lint]
+select = [
+    "A",     # builtin shadowing
+    "ASYNC", # async pitfalls
+    "B",     # bugbear
+    "C4",    # comprehensions
+    "D",     # docstrings
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "G",     # logging format
+    "I",     # import sorting
+    "INP",   # implicit namespace packages
+    "ISC",   # implicit string concat
+    "LOG",   # logging
+    "N",     # naming
+    "PERF",  # performance
+    "PIE",   # misc lints
+    "PL",    # pylint
+    "PTH",   # pathlib
+    "RET",   # return values
+    "RSE",   # raise
+    "RUF",   # ruff specific
+    "S",     # bandit
+    "SIM",   # simplify
+    "T20",   # no print
+    "TID",   # tidy imports
+    "TRY",   # exception handling
+    "UP",    # pyupgrade
+    "W",     # pycodestyle warnings
+]
+ignore = [
+    "D203",    # incompatible with D211
+    "D213",    # incompatible with D212
+    "PLR2004", # magic values are readable here
+    "RUF012", # Home Assistant entity classes use plain mutable defaults
+    "S104",    # binding 0.0.0.0 is required to receive UDP broadcasts
+    "TRY003",  # long messages outside the exception class
+]
+
+[lint.per-file-ignores]
+# Standalone helper script, not part of the shipped integration.
+"tools/*" = [
+    "D101",
+    "D103",
+    "D107",
+    "INP001",
+    "S324", # md5 is used to de-duplicate packets, not for security
+    "T20",
+    "TRY400",
+]
+
+[lint.isort]
+combine-as-imports = true
+force-sort-within-sections = true
+known-first-party = ["homeassistant"]
+split-on-trailing-comma = false
+
+[lint.pydocstyle]
+convention = "pep257"

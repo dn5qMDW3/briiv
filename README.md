@@ -9,9 +9,12 @@ Originally created by [@FiveCreate](https://github.com/FiveCreate) ([Briiv_HA](h
 ## Features
 
 - **Fan control**: Power on/off, fan speed (25/50/75/100%), and boost mode
-- **Sensors**: Temperature, humidity, PM1, PM2.5, PM10, VOC, CO, and NOx
+- **Sensors**: Temperature, humidity, PM1, PM2.5, PM4, PM10, VOC, CO, NOx, and boost time remaining
 - **Auto-discovery**: Finds Briiv devices on your local network
 - **Manual setup**: Configure by IP address and serial number
+- **Reconfigurable**: Change a device's IP address without removing it
+- **Availability tracking**: Entities go unavailable if a device stops broadcasting
+- **Diagnostics**: Downloadable diagnostics for troubleshooting
 - Supports both Briiv and Briiv Pro models
 
 ## Installation
@@ -37,6 +40,16 @@ Originally created by [@FiveCreate](https://github.com/FiveCreate) ([Briiv_HA](h
 
 ## Requirements
 
-- Home Assistant 2024.8.0 or newer
+- Home Assistant 2026.1.0 or newer
 - Briiv air purifier on the same local network as Home Assistant
 - UDP port 3334 must be accessible between Home Assistant and the Briiv device
+
+## Troubleshooting
+
+The integration listens on UDP port 3334, and needs to bind it exclusively.
+If another process on the Home Assistant host is already bound to that port,
+setup fails with a retryable error rather than starting up deaf; free the port
+and Home Assistant will retry on its own.
+
+Devices on a different subnet will not be discovered, because they announce
+themselves by broadcast; discovery only sees the local network segment.

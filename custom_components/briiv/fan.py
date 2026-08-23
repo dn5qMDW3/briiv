@@ -2,34 +2,37 @@
 
 from __future__ import annotations
 
+from math import ceil
 from typing import Any
 
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import BriivConfigEntry
-from .api import BriivAPI
-from .const import DOMAIN, LOGGER, PRESET_MODE_BOOST
+from .const import PRESET_MODE_BOOST
+from .entity import BriivEntity
+
+# The firmware only accepts these fan speeds, expressed as a percentage.
+SPEED_STEP = 25
+DEFAULT_SPEED = 25
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: BriivConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Briiv fan based on config entry."""
-    async_add_entities([BriivFan(entry.runtime_data, entry.data["serial_number"])])
+    async_add_entities([BriivFan(entry)])
 
 
-class BriivFan(FanEntity):
+class BriivFan(BriivEntity, FanEntity):
     """Representation of a Briiv fan."""
 
-    _attr_has_entity_name = True
     _attr_name = None
     _attr_preset_modes = [PRESET_MODE_BOOST]
-    _attr_speed_count = 4
+    _attr_speed_count = 100 // SPEED_STEP
     _attr_supported_features = (
         FanEntityFeature.SET_SPEED
         | FanEntityFeature.PRESET_MODE
@@ -37,40 +40,18 @@ class BriivFan(FanEntity):
         | FanEntityFeature.TURN_OFF
     )
 
-    def __init__(self, api: BriivAPI, serial_number: str) -> None:
+    def __init__(self, entry: BriivConfigEntry) -> None:
         """Initialize the fan."""
-        self._api = api
-        self._serial = serial_number
-        self._attr_unique_id = serial_number
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, serial_number)},
-            name=f"Briiv {serial_number}",
-            manufacturer="Briiv",
-            model="Air Purifier",
-        )
+        super().__init__(entry)
+        self._attr_unique_id = self._serial
         self._attr_is_on = False
         self._attr_percentage = 0
         self._attr_preset_mode = None
         self._fan_speed = 0
-        self._model_updated = False
-
-    async def async_added_to_hass(self) -> None:
-        """Register callback when entity is added to hass."""
-        self._api.register_callback(self._handle_update)
 
     async def _handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from device."""
-        update_state = False
-
-        if not self._model_updated and "is_briiv_pro" in data:
-            model = "Briiv Pro" if data["is_briiv_pro"] else "Briiv"
-            self._attr_device_info = DeviceInfo(
-                identifiers={(DOMAIN, self._serial)},
-                name=f"Briiv {self._serial}",
-                manufacturer="Briiv",
-                model=model,
-            )
-            self._model_updated = True
+        changed = False
 
         if "power" in data:
             power_state = bool(data["power"])
@@ -78,42 +59,40 @@ class BriivFan(FanEntity):
                 self._attr_is_on = power_state
                 if not power_state:
                     self._attr_percentage = 0
-                update_state = True
+                changed = True
 
         if "fan_speed" in data:
-            new_speed = data["fan_speed"]
+            new_speed = int(data["fan_speed"])
             if new_speed != self._fan_speed:
                 self._fan_speed = new_speed
-                self._attr_percentage = 0 if new_speed == 0 else new_speed
-                update_state = True
+                # Boost pins the fan at full speed, so leave the reported
+                # percentage alone until boost ends.
+                if self._attr_preset_mode != PRESET_MODE_BOOST:
+                    self._attr_percentage = new_speed if self._attr_is_on else 0
+                changed = True
 
         if "boost" in data:
             boost_active = bool(data["boost"])
-            if boost_active:
-                self._attr_preset_mode = PRESET_MODE_BOOST
-                self._attr_is_on = True
-                self._attr_percentage = 100
-            else:
-                self._attr_preset_mode = None
-            update_state = True
+            if boost_active != (self._attr_preset_mode == PRESET_MODE_BOOST):
+                if boost_active:
+                    self._attr_preset_mode = PRESET_MODE_BOOST
+                    self._attr_is_on = True
+                    self._attr_percentage = 100
+                else:
+                    self._attr_preset_mode = None
+                    self._attr_percentage = self._fan_speed if self._attr_is_on else 0
+                changed = True
 
-        if update_state:
+        if changed:
             self.async_write_ha_state()
 
     async def async_set_percentage(self, percentage: int) -> None:
         """Set the speed percentage of the fan."""
-        if percentage is None or percentage == 0:
+        if percentage == 0:
             await self.async_turn_off()
             return
 
-        if percentage <= 25:
-            firmware_speed = 25
-        elif percentage <= 50:
-            firmware_speed = 50
-        elif percentage <= 75:
-            firmware_speed = 75
-        else:
-            firmware_speed = 100
+        firmware_speed = min(100, ceil(percentage / SPEED_STEP) * SPEED_STEP)
 
         if not self._attr_is_on:
             await self._api.set_power(True)
@@ -123,8 +102,8 @@ class BriivFan(FanEntity):
             self._attr_preset_mode = None
 
         await self._api.set_fan_speed(firmware_speed)
-        self._attr_percentage = firmware_speed
         self._fan_speed = firmware_speed
+        self._attr_percentage = firmware_speed
         self._attr_is_on = True
         self.async_write_ha_state()
 
@@ -135,31 +114,23 @@ class BriivFan(FanEntity):
         **kwargs: Any,
     ) -> None:
         """Turn on the fan."""
-        await self._api.set_power(True)
-        self._attr_is_on = True
+        if preset_mode is not None:
+            await self.async_set_preset_mode(preset_mode)
+            return
 
-        if preset_mode == PRESET_MODE_BOOST:
-            await self._api.set_boost(True)
-            self._attr_preset_mode = PRESET_MODE_BOOST
-            self._attr_percentage = 100
-        elif percentage is not None:
+        if percentage is not None:
             await self.async_set_percentage(percentage)
-        else:
-            await self._api.set_fan_speed(25)
-            self._fan_speed = 25
-            self._attr_percentage = 25
+            return
 
+        await self._api.set_power(True)
+        await self._api.set_fan_speed(DEFAULT_SPEED)
+        self._fan_speed = DEFAULT_SPEED
+        self._attr_percentage = DEFAULT_SPEED
+        self._attr_is_on = True
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the fan."""
-        if (
-            self._attr_preset_mode != PRESET_MODE_BOOST
-            and self._attr_percentage is not None
-        ):
-            await self._api.set_fan_speed(self._attr_percentage)
-            self._fan_speed = self._attr_percentage
-
         if self._attr_preset_mode == PRESET_MODE_BOOST:
             await self._api.set_boost(False)
             self._attr_preset_mode = None
@@ -171,21 +142,13 @@ class BriivFan(FanEntity):
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set the preset mode of the fan."""
-        if preset_mode == PRESET_MODE_BOOST:
-            if not self._attr_is_on:
-                await self._api.set_power(True)
-            await self._api.set_boost(True)
-            self._attr_preset_mode = PRESET_MODE_BOOST
-            self._attr_is_on = True
-            self._attr_percentage = 100
-        elif self._attr_preset_mode == PRESET_MODE_BOOST:
-            await self._api.set_boost(False)
-            self._attr_preset_mode = None
-            if self._fan_speed > 0:
-                await self._api.set_fan_speed(self._fan_speed)
+        self._valid_preset_mode_or_raise(preset_mode)
 
+        if not self._attr_is_on:
+            await self._api.set_power(True)
+
+        await self._api.set_boost(True)
+        self._attr_preset_mode = PRESET_MODE_BOOST
+        self._attr_is_on = True
+        self._attr_percentage = 100
         self.async_write_ha_state()
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Remove callback when entity is being removed."""
-        self._api.remove_callback(self._handle_update)

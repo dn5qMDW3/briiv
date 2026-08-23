@@ -6,66 +6,35 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import BriivConfigEntry
-from .api import BriivAPI
-from .const import DOMAIN, LOGGER, SENSOR_TYPES
+from .const import SENSOR_TYPES
+from .entity import BriivEntity
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: BriivConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the Briiv sensors."""
-    api = entry.runtime_data
-    serial_number = entry.data["serial_number"]
-
-    async_add_entities(
-        [BriivSensor(api, description, serial_number) for description in SENSOR_TYPES]
-    )
+    async_add_entities(BriivSensor(entry, description) for description in SENSOR_TYPES)
 
 
-class BriivSensor(SensorEntity):
+class BriivSensor(BriivEntity, SensorEntity):
     """Representation of a Briiv sensor."""
 
-    _attr_has_entity_name = True
-
     def __init__(
-        self,
-        api: BriivAPI,
-        description: SensorEntityDescription,
-        serial_number: str,
+        self, entry: BriivConfigEntry, description: SensorEntityDescription
     ) -> None:
         """Initialize the sensor."""
+        super().__init__(entry)
         self.entity_description = description
-        self._api = api
-        self._serial_number = serial_number
-        self._attr_unique_id = f"{serial_number}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, serial_number)},
-            name=f"Briiv {serial_number}",
-            manufacturer="Briiv",
-            model="Air Purifier",
-        )
-        self._attr_native_value = None
-
-    async def async_added_to_hass(self) -> None:
-        """Register callback when entity is added to hass."""
-        self._api.register_callback(self._handle_update)
+        self._attr_unique_id = f"{self._serial}_{description.key}"
 
     async def _handle_update(self, data: dict[str, Any]) -> None:
         """Handle updated data from device."""
-        if (
-            "serial_number" in data
-            and data["serial_number"] == self._serial_number
-            and self.entity_description.key in data
-        ):
-            self._attr_native_value = data[self.entity_description.key]
+        if (value := data.get(self.entity_description.key)) is not None:
+            self._attr_native_value = value
             self.async_write_ha_state()
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Remove callback when entity is being removed."""
-        self._api.remove_callback(self._handle_update)
