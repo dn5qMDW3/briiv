@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
 import logging
 from typing import Final
 
@@ -12,11 +15,13 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+    CONCENTRATION_PARTS_PER_MILLION,
     PERCENTAGE,
     Platform,
     UnitOfTemperature,
-    UnitOfTime,
 )
+from homeassistant.helpers.typing import StateType
+from homeassistant.util import dt as dt_util
 
 DOMAIN: Final = "briiv"
 LOGGER = logging.getLogger(__package__)
@@ -41,80 +46,101 @@ PLATFORMS: Final = [Platform.FAN, Platform.SENSOR]
 
 PRESET_MODE_BOOST: Final = "boost"
 
-# Sensor keys published by earlier versions, removed from the entity registry
-# on setup so they do not linger as unavailable entities.
-REMOVED_SENSOR_KEYS: Final = ("co",)
-
-# The firmware's only sensor driver is a Sensirion SEN5x (main/sensors/SEN5X in
-# the vendor firmware), which reports VOC and NOx as unitless indices from 1 to
-# 500 rather than densities, so those two carry no device class or unit.
+# Field semantics were established by capturing the device's own broadcasts.
 #
-# The broadcast also carries a "co" field, which is deliberately not exposed.
-# The device has no carbon monoxide sensor: the SEN5x is the only sensor driver
-# in the firmware, it has no CO channel, and the vendor's own app never displays
-# a carbon monoxide reading. Publishing it as a carbon monoxide measurement
-# invited automations to trust a value the hardware cannot measure. Entities for
-# it are cleaned up by REMOVED_SENSOR_KEYS in __init__.py.
-SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
-    SensorEntityDescription(
+# "voc" and "nox" are Sensirion gas indices, seen climbing from 0 to their
+# working range as the sensor warmed up, so they carry no unit or device class.
+#
+# "co" is carbon dioxide in ppm despite its name. It sits at exactly 400, the
+# atmospheric baseline a CO2 part reports before its first real measurement,
+# until the sensor warms up, then tracks room air (~1200 ppm when observed).
+# It is not carbon monoxide: that concentration would be acutely dangerous,
+# and no reading resembling carbon monoxide appears anywhere in the vendor's
+# own app.
+#
+# "boost_end_time" is an absolute Unix timestamp, constant while boost runs
+# rather than counting down, and zero when boost is off. Note this is a
+# different clock from "timestamp", which counts milliseconds since boot.
+
+
+def _boost_deadline(value: float) -> datetime | None:
+    """Convert the boost deadline to a datetime, or None when boost is off."""
+    return dt_util.utc_from_timestamp(value) if value else None
+
+
+@dataclass(frozen=True, kw_only=True)
+class BriivSensorEntityDescription(SensorEntityDescription):
+    """Describes a Briiv sensor, with an optional conversion of the raw value."""
+
+    value_fn: Callable[[float], StateType | datetime] = lambda value: value
+
+
+SENSOR_TYPES: tuple[BriivSensorEntityDescription, ...] = (
+    BriivSensorEntityDescription(
         key="temp",
         translation_key="temperature",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
     ),
-    SensorEntityDescription(
+    BriivSensorEntityDescription(
         key="humid",
         translation_key="humidity",
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.HUMIDITY,
         state_class=SensorStateClass.MEASUREMENT,
     ),
-    SensorEntityDescription(
+    BriivSensorEntityDescription(
         key="pm1",
         translation_key="pm1",
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
         device_class=SensorDeviceClass.PM1,
         state_class=SensorStateClass.MEASUREMENT,
     ),
-    SensorEntityDescription(
+    BriivSensorEntityDescription(
         key="pm2_5",
         translation_key="pm2_5",
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
         device_class=SensorDeviceClass.PM25,
         state_class=SensorStateClass.MEASUREMENT,
     ),
-    SensorEntityDescription(
+    BriivSensorEntityDescription(
         key="pm4",
         translation_key="pm4",
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
         device_class=SensorDeviceClass.PM4,
         state_class=SensorStateClass.MEASUREMENT,
     ),
-    SensorEntityDescription(
+    BriivSensorEntityDescription(
         key="pm10",
         translation_key="pm10",
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
         device_class=SensorDeviceClass.PM10,
         state_class=SensorStateClass.MEASUREMENT,
     ),
-    SensorEntityDescription(
+    BriivSensorEntityDescription(
         key="voc",
         translation_key="voc",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
     ),
-    SensorEntityDescription(
+    BriivSensorEntityDescription(
+        key="co",
+        translation_key="carbon_dioxide",
+        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        device_class=SensorDeviceClass.CO2,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    BriivSensorEntityDescription(
         key="nox",
         translation_key="nitrogen_oxides",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
     ),
-    SensorEntityDescription(
+    BriivSensorEntityDescription(
         key="boost_end_time",
         translation_key="boost_end_time",
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        device_class=SensorDeviceClass.DURATION,
-        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=_boost_deadline,
     ),
 )

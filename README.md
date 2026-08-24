@@ -9,7 +9,7 @@ Originally created by [@FiveCreate](https://github.com/FiveCreate) ([Briiv_HA](h
 ## Features
 
 - **Fan control**: Power on/off, fan speed (25/50/75/100%), and boost mode
-- **Sensors**: Temperature, humidity, PM1, PM2.5, PM4, PM10, VOC index, NOx index, and boost time remaining
+- **Sensors**: Temperature, humidity, PM1, PM2.5, PM4, PM10, CO2, VOC index, NOx index, and boost end time
 - **Auto-discovery**: Finds Briiv devices on your local network
 - **Manual setup**: Configure by IP address and serial number
 - **Reconfigurable**: Change a device's IP address without removing it
@@ -54,10 +54,15 @@ and Home Assistant will retry on its own.
 Devices on a different subnet will not be discovered, because they announce
 themselves by broadcast; discovery only sees the local network segment.
 
-### Why there is no carbon monoxide sensor
+### About the CO2, VOC and NOx readings
 
-The device broadcasts a `co` field, but it is not exposed. The only sensor in
-the hardware is a Sensirion SEN5x, which measures particulates, temperature and
-humidity and has no carbon monoxide channel, and the vendor's own app never
-shows a carbon monoxide reading. Earlier versions of this integration published
-it as a real measurement; that entity is now removed automatically on upgrade.
+The device broadcasts a field named `co`, but it carries carbon dioxide in ppm,
+not carbon monoxide. It reads exactly 400, the atmospheric baseline, until the
+sensor warms up, and then tracks room air. It is exposed as a CO2 sensor.
+
+`voc` and `nox` are Sensirion gas indices rather than concentrations. They run
+from 0 to 500 and have no unit, so they are exposed without a unit or device
+class and named "VOC index" and "NOx index".
+
+Versions before 1.2.0 published all three with the wrong types, so their
+long term statistics restart after upgrading.
