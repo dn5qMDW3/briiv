@@ -8,7 +8,6 @@
       "pm4": { "name": "PM4" },
       "pm10": { "name": "PM10" },
       "voc": { "name": "VOC index" },
-      "carbon_monoxide": { "name": "Carbon monoxide" },
       "nitrogen_oxides": { "name": "NOx index" },
       "boost_end_time": { "name": "Boost time remaining" }
     }

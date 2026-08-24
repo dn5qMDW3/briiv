@@ -41,9 +41,20 @@ PLATFORMS: Final = [Platform.FAN, Platform.SENSOR]
 
 PRESET_MODE_BOOST: Final = "boost"
 
+# Sensor keys published by earlier versions, removed from the entity registry
+# on setup so they do not linger as unavailable entities.
+REMOVED_SENSOR_KEYS: Final = ("co",)
+
 # The firmware's only sensor driver is a Sensirion SEN5x (main/sensors/SEN5X in
 # the vendor firmware), which reports VOC and NOx as unitless indices from 1 to
 # 500 rather than densities, so those two carry no device class or unit.
+#
+# The broadcast also carries a "co" field, which is deliberately not exposed.
+# The device has no carbon monoxide sensor: the SEN5x is the only sensor driver
+# in the firmware, it has no CO channel, and the vendor's own app never displays
+# a carbon monoxide reading. Publishing it as a carbon monoxide measurement
+# invited automations to trust a value the hardware cannot measure. Entities for
+# it are cleaned up by REMOVED_SENSOR_KEYS in __init__.py.
 SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="temp",
@@ -92,13 +103,6 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         translation_key="voc",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
-    ),
-    SensorEntityDescription(
-        key="co",
-        translation_key="carbon_monoxide",
-        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
-        device_class=SensorDeviceClass.CO,
-        state_class=SensorStateClass.MEASUREMENT,
     ),
     SensorEntityDescription(
         key="nox",

@@ -17,3 +17,6 @@ venv/
 *~
 .DS_Store
 Thumbs.db
+
+# Vendor firmware and app binaries used for protocol research, never shipped.
+APK/
