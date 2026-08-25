@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 import logging
-from typing import Final
+from typing import Any, Final
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -37,6 +37,17 @@ DEVICE_TIMEOUT: Final = 180
 
 CONF_SERIAL_NUMBER: Final = "serial_number"
 CONF_IS_PRO: Final = "is_pro"
+
+# Which transport a config entry uses. Local entries talk to one device over
+# UDP; a cloud entry covers every device on a Briiv account.
+CONF_CONNECTION: Final = "connection"
+CONNECTION_LOCAL: Final = "local"
+CONNECTION_CLOUD: Final = "cloud"
+
+# The sign-in code Briiv emails; CONF_EMAIL comes from homeassistant.const.
+CONF_CODE: Final = "code"
+# The name of a config entry key, not a credential in itself.
+CONF_REFRESH_TOKEN: Final = "refresh_token"  # noqa: S105
 
 MANUFACTURER: Final = "Briiv"
 MODEL_BRIIV: Final = "Briiv"
@@ -72,7 +83,7 @@ def _boost_deadline(value: float) -> datetime | None:
 class BriivSensorEntityDescription(SensorEntityDescription):
     """Describes a Briiv sensor, with an optional conversion of the raw value."""
 
-    value_fn: Callable[[float], StateType | datetime] = lambda value: value
+    value_fn: Callable[[Any], StateType | datetime] = lambda value: value
 
 
 SENSOR_TYPES: tuple[BriivSensorEntityDescription, ...] = (
@@ -142,5 +153,67 @@ SENSOR_TYPES: tuple[BriivSensorEntityDescription, ...] = (
         translation_key="boost_end_time",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=_boost_deadline,
+    ),
+)
+
+
+def _mean_samples(value: Any) -> float | None:
+    """Average the comma separated samples the cloud sends for a gas reading."""
+    if isinstance(value, (int, float)):
+        return round(float(value), 1)
+    if not isinstance(value, str):
+        return None
+
+    samples = []
+    for part in value.split(","):
+        try:
+            samples.append(float(part))
+        except ValueError:
+            continue
+    if not samples:
+        return None
+    return round(sum(samples) / len(samples), 1)
+
+
+def _cloud_deadline(value: Any) -> datetime | None:
+    """Convert a cloud timestamp to a datetime, tolerating seconds or millis."""
+    if not value:
+        return None
+    try:
+        moment = float(value)
+    except (TypeError, ValueError):
+        return None
+    # The cloud mixes the two: boostEnd looks like seconds, filter timestamps
+    # are milliseconds. Anything past the year 5138 in seconds is millis.
+    if moment > 1e11:
+        moment /= 1000
+    return dt_util.utc_from_timestamp(moment)
+
+
+# Sensors for a cloud entry. The cloud payload uses different field names from
+# the local broadcast and has not been fully catalogued; these are the fields
+# confirmed so far. Any others show up in the integration's diagnostics, which
+# dump the raw device object, and can be added here.
+CLOUD_SENSOR_TYPES: tuple[BriivSensorEntityDescription, ...] = (
+    BriivSensorEntityDescription(
+        key="Co",
+        translation_key="carbon_dioxide",
+        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        device_class=SensorDeviceClass.CO2,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_mean_samples,
+    ),
+    BriivSensorEntityDescription(
+        key="coconutFilter",
+        translation_key="filter_life",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+    BriivSensorEntityDescription(
+        key="boostEnd",
+        translation_key="boost_end_time",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=_cloud_deadline,
     ),
 )

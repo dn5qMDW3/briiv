@@ -10,6 +10,7 @@
       "voc": { "name": "VOC index" },
       "carbon_dioxide": { "name": "CO2" },
       "nitrogen_oxides": { "name": "NOx index" },
+      "filter_life": { "name": "Filter remaining" },
       "boost_end_time": { "name": "Boost ends" }
     }
   },
@@ -17,6 +18,14 @@
     "flow_title": "Briiv air purifier {serial_number}",
     "step": {
       "user": {
+        "title": "Briiv air purifier",
+        "description": "Choose how Home Assistant should reach your purifiers.",
+        "menu_options": {
+          "local": "On this network (no account needed)",
+          "cloud": "Briiv account (works away from home)"
+        }
+      },
+      "local": {
         "title": "Briiv air purifier",
         "description": "Found {new_devices} new device(s).\n\nAlready configured:\n{configured_devices}",
         "data": {
@@ -38,6 +47,28 @@
           "serial_number": "The serial number printed on the device."
         }
       },
+      "cloud": {
+        "title": "Sign in to Briiv",
+        "description": "Briiv will email you a 6 digit code. Every purifier on the account is added.",
+        "data": {
+          "email": "Email address"
+        },
+        "data_description": {
+          "email": "The email address you use with the Briiv app."
+        }
+      },
+      "cloud_code": {
+        "title": "Enter your code",
+        "description": "Briiv sent a 6 digit code to {email}. The code expires after a few minutes.",
+        "data": {
+          "code": "Access code"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Sign in to Briiv again",
+        "description": "The Briiv sign-in for {email} has expired. Continue to have a new code emailed to you.",
+        "data": {}
+      },
       "reconfigure": {
         "title": "Reconfigure Briiv",
         "description": "Update the IP address for device {serial_number}.",
@@ -51,11 +82,15 @@
     },
     "error": {
       "discovery_error": "Failed to discover devices",
+      "cannot_connect": "Failed to connect",
       "invalid_host": "Not a valid IP address",
-      "invalid_serial": "Not a valid serial number"
+      "invalid_serial": "Not a valid serial number",
+      "unknown_account": "No Briiv account was found for that email address",
+      "invalid_code": "That code was not accepted. It may have expired, in which case request a new one."
     },
     "abort": {
       "already_configured": "Device is already configured",
+      "reauth_successful": "Signed in to Briiv again",
       "reconfigure_successful": "Reconfiguration was successful"
     }
   }

@@ -8,6 +8,7 @@ Originally created by [@FiveCreate](https://github.com/FiveCreate) ([Briiv_HA](h
 
 ## Features
 
+- **Two ways to connect**: locally over UDP (no account, no cloud) or through a Briiv account (works away from home)
 - **Fan control**: Power on/off, fan speed (25/50/75/100%), and boost mode
 - **Sensors**: Temperature, humidity, PM1, PM2.5, PM4, PM10, CO2, VOC index, NOx index, and boost end time
 - **Auto-discovery**: Finds Briiv devices on your local network
@@ -36,7 +37,19 @@ Originally created by [@FiveCreate](https://github.com/FiveCreate) ([Briiv_HA](h
 
 1. Go to **Settings > Devices & Services > Add Integration**
 2. Search for "Briiv"
-3. The integration will discover devices automatically, or you can configure manually with the device IP and serial number
+3. Choose how to connect:
+
+**On this network** (recommended) — discovers purifiers broadcasting on your
+LAN, or add one manually by IP address and serial number. Needs no account and
+no internet, but only sees devices on the same network segment.
+
+**Briiv account** — sign in with the email address you use in the Briiv app.
+Briiv emails a 6 digit code; enter it and every purifier on the account is
+added. This works from anywhere, including when the purifiers are on a
+different subnet from Home Assistant.
+
+Both can be used together: a purifier added twice appears as one device in Home
+Assistant, with a separate set of entities per connection.
 
 ## Requirements
 
@@ -53,6 +66,26 @@ and Home Assistant will retry on its own.
 
 Devices on a different subnet will not be discovered, because they announce
 themselves by broadcast; discovery only sees the local network segment.
+
+### Signing in again
+
+The Briiv account sign-in is passwordless, so there is no password to store.
+Home Assistant keeps the refresh token and renews the session silently. If that
+token eventually expires, Home Assistant asks you to sign in again and Briiv
+emails a fresh code. Each code is only valid for a few minutes.
+
+### Cloud entities
+
+A cloud connection currently exposes the fan, CO2, filter life, and the boost
+end time. The cloud names its fields differently from the local broadcast and
+they are not all mapped yet; the remaining sensors are available on a local
+connection. Boost is likewise local-only for now, because the field that starts
+a boost has not been confirmed and guessing it could send the wrong command.
+
+If you would like the missing cloud sensors mapped, download diagnostics from
+the cloud entry (**Settings > Devices & Services > Briiv > ... > Download
+diagnostics**): it includes the raw device payload with identifying values
+removed.
 
 ### About the CO2, VOC and NOx readings
 
