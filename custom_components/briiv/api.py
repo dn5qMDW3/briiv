@@ -108,6 +108,24 @@ class BriivAPI:
             return None
         return time.monotonic() - self.last_seen
 
+    def _command_destination(self, serial: str) -> tuple[str, int]:
+        """Return where a command for this device should be sent.
+
+        A configured address is preferred over the one a broadcast arrived
+        from. They are normally the same, but they differ when something
+        relays broadcasts on the device's behalf: the packet then carries the
+        relay's address, and commands sent there never reach the purifier.
+        Preferring the configured address means a relay only has to carry
+        broadcasts one way, and commands can go straight to the device.
+
+        Falling back to a broadcast only helps on the device's own segment, so
+        it is a last resort for a device that has not been heard from and has
+        no address configured.
+        """
+        if self.host and self.host != "0.0.0.0":
+            return (self.host, self.port)
+        return self._device_addresses.get(serial, ("255.255.255.255", self.port))
+
     async def send_command(self, command: dict[str, Any]) -> None:
         """Send a command to the Briiv device."""
         if not self._shared_socket:
@@ -119,11 +137,8 @@ class BriivAPI:
 
         try:
             data = json.dumps(command).encode()
-            dest_addr = self._device_addresses.get(
-                serial, ("255.255.255.255", self.port)
-            )
             await asyncio.get_running_loop().sock_sendto(
-                self._shared_socket, data, dest_addr
+                self._shared_socket, data, self._command_destination(serial)
             )
         except OSError as err:
             raise BriivError(f"Failed to send command: {err}") from err

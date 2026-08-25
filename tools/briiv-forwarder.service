@@ -1,0 +1,14 @@
+[Unit]
+Description=Briiv UDP Broadcast Forwarder
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/briiv/briiv_forwarder.py --device-iface wlan0 --ha-host 192.168.30.5
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

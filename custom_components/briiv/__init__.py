@@ -11,22 +11,25 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import BriivAPI, BriivError, DataCallback
 from .cloud import BriivCloudAPI
 from .const import (
+    CLOUD_AIR_QUALITY_KEYS,
     CONF_CONNECTION,
     CONF_IS_PRO,
     CONF_REFRESH_TOKEN,
     CONF_SERIAL_NUMBER,
     CONNECTION_CLOUD,
+    DOMAIN,
     LOGGER,
     PLATFORMS,
+    PRO_ONLY_SENSOR_KEYS,
 )
 from .coordinator import BriivCloudCoordinator
 from .entity import build_device_info
@@ -65,6 +68,9 @@ async def _async_setup_local(hass: HomeAssistant, entry: BriivConfigEntry) -> bo
     entry.runtime_data = api
     entry.async_on_unload(api.register_callback(_make_model_listener(hass, entry)))
 
+    if entry.data.get(CONF_IS_PRO) is False:
+        _async_prune_sensors(hass, entry.data[CONF_SERIAL_NUMBER], PRO_ONLY_SENSOR_KEYS)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
@@ -91,9 +97,37 @@ async def _async_setup_cloud(hass: HomeAssistant, entry: BriivConfigEntry) -> bo
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
+    for serial, device in (coordinator.data or {}).items():
+        if not any(key in device for key in CLOUD_AIR_QUALITY_KEYS):
+            _async_prune_sensors(hass, serial, CLOUD_AIR_QUALITY_KEYS, prefix="cloud_")
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
+
+
+def _async_prune_sensors(
+    hass: HomeAssistant,
+    serial: str,
+    keys: frozenset[str],
+    prefix: str = "",
+) -> None:
+    """Remove sensors a device turns out not to have.
+
+    A device's model is only known once it has been heard from, so entities can
+    already exist for readings it cannot produce. Left alone they sit at
+    unknown for ever, and one of them reports a carbon dioxide default that
+    looks like a real measurement, so they are cleared rather than hidden.
+    """
+    registry = er.async_get(hass)
+
+    for key in keys:
+        entity_id = registry.async_get_entity_id(
+            Platform.SENSOR, DOMAIN, f"{serial}_{prefix}{key}"
+        )
+        if entity_id:
+            LOGGER.debug("Removing %s: this device does not report %s", entity_id, key)
+            registry.async_remove(entity_id)
 
 
 def _make_model_listener(hass: HomeAssistant, entry: BriivConfigEntry) -> DataCallback:

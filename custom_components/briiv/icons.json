@@ -12,6 +12,9 @@
       },
       "boost_end_time": {
         "default": "mdi:timer-sand"
+      },
+      "wifi_signal": {
+        "default": "mdi:wifi"
       }
     }
   }

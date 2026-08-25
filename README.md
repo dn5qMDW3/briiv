@@ -83,6 +83,24 @@ not use the port at all.
 Devices on a different subnet will not be discovered, because they announce
 themselves by broadcast; discovery only sees the local network segment.
 
+There are two ways round that. The simplest is a **Briiv account** connection,
+which needs no network changes at all, at the cost of updating only as often as
+the vendor's cloud does, which can be hours.
+
+For local updates every couple of seconds, carry the broadcasts across instead.
+`tools/briiv_forwarder.py`, run on a host with an interface on each network,
+forwards each broadcast to Home Assistant as a unicast packet:
+
+```bash
+sudo python3 briiv_forwarder.py --device-iface wlan0 --ha-host 192.168.30.5
+```
+
+Add each purifier **by IP address** rather than by discovery when you do this.
+The integration prefers a configured address over the one a packet arrived
+from, so commands go straight to the purifier and the forwarder only has to
+carry traffic one way. Commands need the two subnets to route to each other,
+which is normally the case: it is only broadcasts that do not cross.
+
 ### Signing in again
 
 The Briiv account sign-in is passwordless, so there is no password to store.

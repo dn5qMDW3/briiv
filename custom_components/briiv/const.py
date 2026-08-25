@@ -17,6 +17,7 @@ from homeassistant.const import (
     CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
     CONCENTRATION_PARTS_PER_MILLION,
     PERCENTAGE,
+    EntityCategory,
     Platform,
     UnitOfTemperature,
 )
@@ -313,5 +314,16 @@ CLOUD_SENSOR_TYPES: tuple[BriivSensorEntityDescription, ...] = (
         translation_key="boost_end_time",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=_cloud_deadline,
+    ),
+    # Signal strength as the service reports it, roughly zero to four bars, so
+    # it carries no unit and no device class. It is deliberately not used to
+    # decide availability: the account can be hours behind the device, and a
+    # stale zero would hide a purifier that is working perfectly well.
+    BriivSensorEntityDescription(
+        key="wifi",
+        translation_key="wifi_signal",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
     ),
 )

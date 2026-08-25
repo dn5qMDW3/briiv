@@ -13,7 +13,8 @@
       "coconut_filter": { "name": "Coconut filter" },
       "matrix_filter": { "name": "Matrix filter" },
       "moss_filter": { "name": "Moss filter" },
-      "boost_end_time": { "name": "Boost ends" }
+      "boost_end_time": { "name": "Boost ends" },
+      "wifi_signal": { "name": "Wi-Fi signal" }
     }
   },
   "config": {

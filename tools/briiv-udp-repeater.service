@@ -1,0 +1,14 @@
+[Unit]
+Description=Briiv UDP Broadcast Repeater
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/briiv-repeater/briiv_udp_repeater.py --device-iface wlan0 --ha-iface eth0 --verbose
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
