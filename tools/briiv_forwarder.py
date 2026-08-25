@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import json
 import logging
 import socket
 
@@ -47,6 +48,19 @@ def local_addresses() -> set[str]:
         for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
             addresses.add(info[4][0])
     return addresses
+
+
+def describe(data: bytes, addr: str) -> str:
+    """Name the purifier a packet came from, for the log.
+
+    Which serial lives at which address is exactly what someone needs when
+    adding a device by IP, and it is otherwise awkward to find.
+    """
+    with contextlib.suppress(UnicodeDecodeError, json.JSONDecodeError):
+        serial = json.loads(data.decode()).get("serial_number")
+        if serial:
+            return f"{addr} ({serial})"
+    return addr
 
 
 def make_listener(iface: str, port: int) -> socket.socket:
@@ -87,6 +101,7 @@ async def forward(iface: str, ha_host: str, port: int) -> None:
     destination = (ha_host, port)
     loop = asyncio.get_running_loop()
     carried = 0
+    seen: set[str] = set()
 
     logger.info("Listening on %s:%d, forwarding to %s:%d", iface, port, ha_host, port)
 
@@ -114,9 +129,13 @@ async def forward(iface: str, ha_host: str, port: int) -> None:
                 continue
 
             carried += 1
-            if carried == 1 or carried % 100 == 0:
-                logger.info("Forwarded %d packets (latest from %s)", carried, addr[0])
-            logger.debug("%s -> %s (%d bytes)", addr[0], ha_host, len(data))
+            source = describe(data, addr[0])
+            if source not in seen:
+                seen.add(source)
+                logger.info("Forwarding for %s", source)
+            elif carried % 100 == 0:
+                logger.info("Forwarded %d packets (latest from %s)", carried, source)
+            logger.debug("%s -> %s (%d bytes)", source, ha_host, len(data))
     finally:
         listener.close()
         sender.close()

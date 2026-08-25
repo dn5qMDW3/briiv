@@ -96,6 +96,11 @@ sudo python3 briiv_forwarder.py --device-iface wlan0 --ha-host 192.168.30.5
 ```
 
 Add each purifier **by IP address** rather than by discovery when you do this.
+Discovery will appear to work, but it records the address a broadcast arrived
+from, which through a forwarder is the forwarder rather than the purifier.
+Readings then arrive normally while commands go nowhere. The forwarder prints
+which serial is at which address as it sees each device, and an existing device
+can be corrected with **Reconfigure**.
 The integration prefers a configured address over the one a packet arrived
 from, so commands go straight to the purifier and the forwarder only has to
 carry traffic one way. Commands need the two subnets to route to each other,
@@ -119,6 +124,11 @@ has no such hardware, so it gets the fan, the three filters and the boost end
 time, and no air quality entities are created for it. On a connection on this
 network a standard unit is likewise given only the fan and its boost end time,
 because it broadcasts the sensor fields as zeros rather than leaving them out.
+
+A Pro also gets a switch for the air quality light on its front. The device
+reports its own state on its own schedule, which can be the better part of an
+hour, so the switch keeps showing the old state until the change comes back
+rather than pretending it has already happened.
 
 Boost is available on a local connection only. The cloud reports when a boost
 ends but the field that starts one has not been confirmed, and sending a

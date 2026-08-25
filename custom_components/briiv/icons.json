@@ -1,5 +1,11 @@
 {
   "entity": {
+    "switch": {
+      "aqi_light": {
+        "default": "mdi:lightbulb-on-outline",
+        "state": { "off": "mdi:lightbulb-off-outline" }
+      }
+    },
     "sensor": {
       "pm4": {
         "default": "mdi:molecule"

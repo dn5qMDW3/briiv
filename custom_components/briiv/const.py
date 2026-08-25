@@ -54,7 +54,7 @@ MANUFACTURER: Final = "Briiv"
 MODEL_BRIIV: Final = "Briiv"
 MODEL_BRIIV_PRO: Final = "Briiv Pro"
 
-PLATFORMS: Final = [Platform.FAN, Platform.SENSOR]
+PLATFORMS: Final = [Platform.FAN, Platform.SENSOR, Platform.SWITCH]
 
 PRESET_MODE_BOOST: Final = "boost"
 
@@ -222,6 +222,11 @@ def _cloud_deadline(value: Any) -> datetime | None:
 # Readings only the Pro's sensor suite produces. A standard Briiv has no such
 # hardware and never sends these, so creating them for one would leave a row of
 # entities that can never have a value.
+# The air quality light on the front of a Pro. Confirmed by watching this
+# field follow the light across three changes, each read from a push that
+# arrived after the change rather than merely after the previous sample.
+CLOUD_AQI_LIGHT_KEY: Final = "Al"
+
 CLOUD_AIR_QUALITY_KEYS: Final = frozenset(
     {"DTe", "DHu", "DPo", "DPt", "DPf", "DPe", "DCo", "DVo", "DNo"}
 )

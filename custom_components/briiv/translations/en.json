@@ -1,5 +1,8 @@
 {
   "entity": {
+    "switch": {
+      "aqi_light": { "name": "Air quality light" }
+    },
     "sensor": {
       "temperature": { "name": "Temperature" },
       "humidity": { "name": "Humidity" },
