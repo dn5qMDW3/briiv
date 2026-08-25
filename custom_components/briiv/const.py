@@ -86,6 +86,15 @@ class BriivSensorEntityDescription(SensorEntityDescription):
     value_fn: Callable[[Any], StateType | datetime] = lambda value: value
 
 
+# A standard Briiv has no sensor hardware. Unlike the cloud, which omits these
+# fields for one, the local broadcast still carries every field the Pro sends
+# but fills them with zeros, and carbon dioxide with its 400 default. Creating
+# these for a standard unit would give a row of sensors that only ever read
+# zero, with the carbon dioxide one looking like a real measurement.
+PRO_ONLY_SENSOR_KEYS: Final = frozenset(
+    {"temp", "humid", "pm1", "pm2_5", "pm4", "pm10", "voc", "co", "nox"}
+)
+
 SENSOR_TYPES: tuple[BriivSensorEntityDescription, ...] = (
     BriivSensorEntityDescription(
         key="temp",

@@ -12,6 +12,8 @@ from . import BriivConfigEntry, is_cloud_entry
 from .const import (
     CLOUD_AIR_QUALITY_KEYS,
     CLOUD_SENSOR_TYPES,
+    CONF_IS_PRO,
+    PRO_ONLY_SENSOR_KEYS,
     SENSOR_TYPES,
     BriivSensorEntityDescription,
 )
@@ -41,7 +43,16 @@ async def async_setup_entry(
         )
         return
 
-    async_add_entities(BriivSensor(entry, description) for description in SENSOR_TYPES)
+    # A standard Briiv reports the sensor fields as zeros rather than omitting
+    # them, so go by the model. When it is not yet known, which happens for a
+    # manually added device before its first broadcast, create them all and let
+    # the reading speak for itself.
+    is_pro = entry.data.get(CONF_IS_PRO)
+    async_add_entities(
+        BriivSensor(entry, description)
+        for description in SENSOR_TYPES
+        if is_pro is not False or description.key not in PRO_ONLY_SENSOR_KEYS
+    )
 
 
 class BriivSensor(BriivEntity, SensorEntity):

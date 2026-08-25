@@ -98,7 +98,9 @@ and the boost end time.
 
 The air quality readings come from the Pro's sensor suite. A standard Briiv
 has no such hardware, so it gets the fan, the three filters and the boost end
-time, and no air quality entities are created for it.
+time, and no air quality entities are created for it. On a connection on this
+network a standard unit is likewise given only the fan and its boost end time,
+because it broadcasts the sensor fields as zeros rather than leaving them out.
 
 Boost is available on a local connection only. The cloud reports when a boost
 ends but the field that starts one has not been confirmed, and sending a
