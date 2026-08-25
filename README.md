@@ -2,19 +2,22 @@
 
 [![HACS Validate](https://github.com/dn5qMDW3/briiv/actions/workflows/validate.yml/badge.svg)](https://github.com/dn5qMDW3/briiv/actions/workflows/validate.yml)
 
-Custom Home Assistant integration for [Briiv](https://briiv.com/) air purifiers. Communicates locally over UDP -- no cloud required.
+Custom Home Assistant integration for [Briiv](https://briiv.com/) air purifiers.
+Talks to them directly over UDP on your own network -- no account, no cloud --
+or through a Briiv account when they sit on a different subnet from Home
+Assistant and their broadcasts cannot reach it.
 
 Originally created by [@FiveCreate](https://github.com/FiveCreate) ([Briiv_HA](https://github.com/FiveCreate/Briiv_HA)).
 
 ## Features
 
 - **Two ways to connect**: locally over UDP (no account, no cloud) or through a Briiv account, for purifiers on a different subnet
-- **Fan control**: Power on/off, fan speed (25/50/75/100%), and boost mode
-- **Sensors**: Temperature, humidity, PM1, PM2.5, PM4, PM10, CO2, VOC index, NOx index, and boost end time
+- **Fan control**: Power on/off and fan speed (25/50/75/100%), plus boost mode on a connection on this network
+- **Sensors**: Temperature, humidity, PM1, PM2.5, PM4, PM10, CO2, VOC index, NOx index and boost end time, plus filter life for each of the three filters on a Briiv account connection
 - **Auto-discovery**: Finds Briiv devices on your local network
 - **Manual setup**: Configure by IP address and serial number
 - **Reconfigurable**: Change a device's IP address without removing it
-- **Availability tracking**: Entities go unavailable if a device stops broadcasting
+- **Availability tracking**: Entities go unavailable when a device stops reporting, rather than showing a stale reading
 - **Diagnostics**: Downloadable diagnostics for troubleshooting
 - Supports both Briiv and Briiv Pro models
 
@@ -54,15 +57,24 @@ Assistant, with a separate set of entities per connection.
 ## Requirements
 
 - Home Assistant 2026.1.0 or newer
-- Briiv air purifier on the same local network as Home Assistant
-- UDP port 3334 must be accessible between Home Assistant and the Briiv device
+
+For a connection **on this network**:
+
+- The purifier on the same network segment as Home Assistant
+- UDP port 3334 reachable between the two, and free on the Home Assistant host
+
+For a **Briiv account** connection:
+
+- A Briiv account with the purifiers already set up in the Briiv app
+- Outbound internet access from Home Assistant
 
 ## Troubleshooting
 
-The integration listens on UDP port 3334, and needs to bind it exclusively.
-If another process on the Home Assistant host is already bound to that port,
-setup fails with a retryable error rather than starting up deaf; free the port
-and Home Assistant will retry on its own.
+A connection on this network listens on UDP port 3334 and needs to bind it
+exclusively. If another process on the Home Assistant host already holds that
+port, setup fails with a retryable error rather than starting up deaf; free the
+port and Home Assistant will retry on its own. A Briiv account connection does
+not use the port at all.
 
 Devices on a different subnet will not be discovered, because they announce
 themselves by broadcast; discovery only sees the local network segment.
@@ -90,9 +102,10 @@ guessed command is not worth the risk.
 
 ### About the CO2, VOC and NOx readings
 
-The device broadcasts a field named `co`, but it carries carbon dioxide in ppm,
-not carbon monoxide. It reads exactly 400, the atmospheric baseline, until the
-sensor warms up, and then tracks room air. It is exposed as a CO2 sensor.
+The device reports carbon dioxide in ppm, under a field named `co` locally and
+`DCo` through the cloud. Despite the local name it is not carbon monoxide: it
+reads exactly 400, the atmospheric baseline, until the sensor warms up, and
+then tracks room air. It is exposed as a CO2 sensor.
 
 `voc` and `nox` are Sensirion gas indices rather than concentrations. They run
 from 0 to 500 and have no unit, so they are exposed without a unit or device
