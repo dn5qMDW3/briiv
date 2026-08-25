@@ -7,7 +7,10 @@ Talks to them directly over UDP on your own network -- no account, no cloud --
 or through a Briiv account when they sit on a different subnet from Home
 Assistant and their broadcasts cannot reach it.
 
-Originally created by [@FiveCreate](https://github.com/FiveCreate) ([Briiv_HA](https://github.com/FiveCreate/Briiv_HA)).
+Based on [Briiv_HA](https://github.com/FiveCreate/Briiv_HA) by
+[@FiveCreate](https://github.com/FiveCreate), which worked out the local UDP
+protocol the device speaks. This version has been substantially rewritten
+since, and adds the Briiv account connection.
 
 ## Features
 
@@ -113,3 +116,8 @@ class and named "VOC index" and "NOx index".
 
 Versions before 1.2.0 published all three with the wrong types, so their
 long term statistics restart after upgrading.
+
+## Licence
+
+Licensed under the Apache License, Version 2.0. See `LICENSE` for the full text
+and `NOTICE` for attribution, including the upstream work this is based on.

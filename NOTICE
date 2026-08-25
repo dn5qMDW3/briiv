@@ -1,0 +1,12 @@
+Briiv Air Purifier Integration for Home Assistant
+Copyright 2026 dn5qMDW3
+
+This product includes software developed as part of Briiv_HA
+(https://github.com/FiveCreate/Briiv_HA) by FiveCreate, licensed under the
+Apache License, Version 2.0. That project established the local UDP protocol
+this integration speaks to Briiv air purifiers.
+
+Portions of this software are derived from that work and have been modified.
+The changes include a rewritten device and entity model, corrected sensor
+types, availability tracking, reconfiguration and diagnostics support, and an
+additional connection through the Briiv cloud service.
