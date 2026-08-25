@@ -87,20 +87,23 @@ There are two ways round that. The simplest is a **Briiv account** connection,
 which needs no network changes at all, at the cost of updating only as often as
 the vendor's cloud does, which can be hours.
 
-For local updates every couple of seconds, carry the broadcasts across instead.
-`tools/briiv_forwarder.py`, run on a host with an interface on each network,
-forwards each broadcast to Home Assistant as a unicast packet:
+For local updates every couple of seconds, carry the traffic across instead.
+`tools/briiv_forwarder.py` runs on any machine on the purifiers' network and
+needs just that one interface, since Home Assistant is reached by ordinary
+routing rather than by broadcast:
 
 ```bash
-sudo python3 briiv_forwarder.py --device-iface wlan0 --ha-host 192.168.30.5
+sudo python3 briiv_forwarder.py --device-iface eth0 --ha-host 192.168.30.92
 ```
 
-Add each purifier **by IP address** rather than by discovery when you do this.
-Discovery will appear to work, but it records the address a broadcast arrived
-from, which through a forwarder is the forwarder rather than the purifier.
-Readings then arrive normally while commands go nowhere. The forwarder prints
-which serial is at which address as it sees each device, and an existing device
-can be corrected with **Reconfigure**.
+It works in both directions. State broadcasts go to Home Assistant as unicast
+packets, and commands coming back are delivered to the purifier they name: every
+Briiv packet carries a serial number, so watching the broadcasts is enough to
+learn which serial is at which address. Discovery therefore works as usual and
+nothing has to be added by hand.
+
+There is a `briiv-forwarder.service` beside it for running it permanently; adjust
+the path and `--ha-host` to match your setup.
 The integration prefers a configured address over the one a packet arrived
 from, so commands go straight to the purifier and the forwarder only has to
 carry traffic one way. Commands need the two subnets to route to each other,

@@ -76,9 +76,7 @@ def make_socket(iface: str, port: int) -> socket.socket:
     with contextlib.suppress(AttributeError, OSError):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
     # Pin socket to a specific network interface (requires root on Linux)
-    sock.setsockopt(
-        socket.SOL_SOCKET, SO_BINDTODEVICE, iface.encode("utf-8") + b"\0"
-    )
+    sock.setsockopt(socket.SOL_SOCKET, SO_BINDTODEVICE, iface.encode("utf-8") + b"\0")
     sock.bind(("0.0.0.0", port))
     sock.setblocking(False)
     return sock
@@ -239,7 +237,8 @@ def parse_args() -> argparse.Namespace:
         help=f"UDP port (default: {DEFAULT_PORT})",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Enable debug logging (includes packet payloads)",
     )

@@ -58,7 +58,15 @@ EPOCH_THRESHOLD = 1_000_000_000
 CO2_BASELINE_PPM = 400
 
 OTHER_FIELDS = (
-    "temp", "humid", "pm1", "pm2_5", "pm4", "pm10", "fan_speed", "power", "boost",
+    "temp",
+    "humid",
+    "pm1",
+    "pm2_5",
+    "pm4",
+    "pm10",
+    "fan_speed",
+    "power",
+    "boost",
 )
 
 
@@ -111,9 +119,7 @@ def bind_to_interface(sock: socket.socket, iface: str) -> None:
 
     try:
         if sys.platform.startswith("linux"):
-            sock.setsockopt(
-                socket.SOL_SOCKET, SO_BINDTODEVICE, iface.encode() + b"\0"
-            )
+            sock.setsockopt(socket.SOL_SOCKET, SO_BINDTODEVICE, iface.encode() + b"\0")
         elif sys.platform in ("darwin", "freebsd"):
             sock.setsockopt(socket.IPPROTO_IP, IP_BOUND_IF, index)
         else:
@@ -218,9 +224,7 @@ def capture(
     while time.monotonic() < deadline:
         try:
             if want_dest:
-                data, ancdata, _flags, addr = sock.recvmsg(
-                    4096, socket.CMSG_SPACE(64)
-                )
+                data, ancdata, _flags, addr = sock.recvmsg(4096, socket.CMSG_SPACE(64))
                 dest = dest_from_ancdata(ancdata)
             else:
                 data, addr = sock.recvfrom(4096)
@@ -262,8 +266,7 @@ def capture(
             print(f"  [{len(arrivals):3}] {addr[0]}  {json.dumps(packet)}")
         else:
             print(
-                f"  [{len(arrivals):3}] {serial} from {addr[0]}"
-                f"  ({remaining}s left)",
+                f"  [{len(arrivals):3}] {serial} from {addr[0]}  ({remaining}s left)",
                 end="\r",
             )
 
@@ -429,9 +432,7 @@ def analyse_timestamp(packets: list[dict[str, Any]]) -> None:
     """Report what the device clock is counting."""
     print("\n  timestamp")
     ts = [
-        p["timestamp"]
-        for p in packets
-        if isinstance(p.get("timestamp"), (int, float))
+        p["timestamp"] for p in packets if isinstance(p.get("timestamp"), (int, float))
     ]
     if not ts:
         print("    field never seen")
@@ -488,12 +489,7 @@ def analyse(by_serial: dict[str, list[dict[str, Any]]], arrivals: list[float]) -
             )
             print("  (integration marks a device unavailable after 180s)")
 
-    dests = {
-        p["_dest"]
-        for pkts in by_serial.values()
-        for p in pkts
-        if p.get("_dest")
-    }
+    dests = {p["_dest"] for pkts in by_serial.values() for p in pkts if p.get("_dest")}
     if dests:
         print(f"\npacket destinations: {sorted(dests)}")
         if dests == {BROADCAST_ADDR}:
@@ -516,33 +512,42 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--duration", type=int, default=DEFAULT_DURATION,
+        "--duration",
+        type=int,
+        default=DEFAULT_DURATION,
         help=f"seconds to listen (default: {DEFAULT_DURATION})",
     )
     parser.add_argument(
-        "--port", type=int, default=DEFAULT_PORT,
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
         help=f"UDP port (default: {DEFAULT_PORT})",
     )
     parser.add_argument(
-        "--iface", metavar="NAME",
+        "--iface",
+        metavar="NAME",
         help="only listen on this interface, e.g. wlan0 (may need sudo)",
     )
     parser.add_argument(
-        "--raw", action="store_true",
+        "--raw",
+        action="store_true",
         help="print every packet as it arrives",
     )
     parser.add_argument(
-        "--unicast", metavar="HOST",
+        "--unicast",
+        metavar="HOST",
         help="send a no-op command straight to this address and report whether "
-             "the device answers; needs --serial. Run this from the Home "
-             "Assistant network with any relay stopped.",
+        "the device answers; needs --serial. Run this from the Home "
+        "Assistant network with any relay stopped.",
     )
     parser.add_argument(
-        "--serial", metavar="SERIAL",
+        "--serial",
+        metavar="SERIAL",
         help="serial number to address, required by --unicast",
     )
     parser.add_argument(
-        "--boost", metavar="SERIAL",
+        "--boost",
+        metavar="SERIAL",
         help="switch boost on for this serial during capture, then off again",
     )
     return parser.parse_args()

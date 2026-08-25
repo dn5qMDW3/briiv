@@ -76,6 +76,7 @@ a binary flow file that you can replay:
 ```python
 from mitmproxy import io
 from pathlib import Path
+
 with Path("/tmp/bsport_flows.mitm").open("rb") as f:
     for flow in io.FlowReader(f).stream():
         print(flow.request.method, flow.request.pretty_url)

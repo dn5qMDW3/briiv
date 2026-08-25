@@ -1,27 +1,32 @@
 #!/usr/bin/env python3
-"""Forward Briiv broadcasts to a Home Assistant on another subnet.
+"""Carry Briiv traffic between a purifier network and Home Assistant.
 
 Briiv purifiers announce their state by UDP broadcast, and broadcasts do not
-cross subnets. Where Home Assistant sits on a different segment from the
-purifiers, something on the boundary has to carry those packets across.
+cross subnets. Where Home Assistant sits on a different segment, something on
+the purifiers' network has to carry those packets across.
 
-This forwards each broadcast straight to Home Assistant as a unicast packet.
-Nothing else on that subnet wanted them, so re-broadcasting there only adds
-noise, and unicast works regardless of how the segment treats broadcast
-traffic.
+This stands in for the purifiers, in both directions:
 
-Only broadcasts are carried. Commands go directly from Home Assistant to the
-purifier, so long as the integration knows the device's address: add the device
-by IP rather than by discovery, and it addresses commands there instead of
-replying to wherever the packet came from. That keeps this one directional and
-much simpler than a two-way relay.
+  * each state broadcast is forwarded to Home Assistant as a unicast packet,
+    so it arrives however the intervening network treats broadcast traffic
+  * each command from Home Assistant is delivered to the purifier it names
 
-Typical setup on a dual homed Raspberry Pi:
-  eth0  (192.168.30.x) -> Home Assistant network
-  wlan0 (192.168.20.x) -> Briiv device network
+Commands can be relayed because every Briiv packet carries a serial number.
+Watching the broadcasts is enough to learn which serial is at which address, so
+a command addressed here can be passed on to the right device. Home Assistant
+therefore needs no special setup: it discovers the purifiers as usual, sends
+commands to wherever the broadcasts appeared to come from, and this delivers
+them. Nothing has to be added by hand, which matters because the integration
+should not carry configuration that only multi subnet installations need.
+
+A command for a serial not yet seen is broadcast on the purifiers' network as a
+fallback; every device receives it and ignores any serial that is not its own.
+
+Only one interface is required, on the purifiers' network. Home Assistant is
+reached by ordinary routing, so it can be anywhere reachable.
 
 Usage:
-  sudo python3 briiv_forwarder.py --device-iface wlan0 --ha-host 192.168.30.5
+  sudo python3 briiv_forwarder.py --device-iface eth0 --ha-host 192.168.30.92
 
 Requires root on Linux, because pinning a socket to one interface does.
 """
@@ -50,17 +55,16 @@ def local_addresses() -> set[str]:
     return addresses
 
 
-def describe(data: bytes, addr: str) -> str:
-    """Name the purifier a packet came from, for the log.
+def read_packet(data: bytes) -> tuple[str | None, bool]:
+    """Return a packet's serial number and whether it is a command.
 
-    Which serial lives at which address is exactly what someone needs when
-    adding a device by IP, and it is otherwise awkward to find.
+    Every Briiv packet names the device it concerns. State broadcasts describe
+    a purifier; commands carry a "command" key and are meant for one.
     """
-    with contextlib.suppress(UnicodeDecodeError, json.JSONDecodeError):
-        serial = json.loads(data.decode()).get("serial_number")
-        if serial:
-            return f"{addr} ({serial})"
-    return addr
+    with contextlib.suppress(UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+        packet = json.loads(data.decode())
+        return packet.get("serial_number"), "command" in packet
+    return None, False
 
 
 def make_listener(iface: str, port: int) -> socket.socket:
@@ -92,23 +96,64 @@ def make_listener(iface: str, port: int) -> socket.socket:
     return sock
 
 
-async def forward(iface: str, ha_host: str, port: int) -> None:
-    """Carry each broadcast to Home Assistant until interrupted."""
-    listener = make_listener(iface, port)
-    sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sender.setblocking(False)
-    mine = local_addresses()
-    destination = (ha_host, port)
-    loop = asyncio.get_running_loop()
-    carried = 0
-    seen: set[str] = set()
+async def deliver_command(
+    sock: socket.socket,
+    data: bytes,
+    serial: str | None,
+    known: dict[str, str],
+    port: int,
+) -> bool:
+    """Pass a command from Home Assistant to the purifier it names.
 
-    logger.info("Listening on %s:%d, forwarding to %s:%d", iface, port, ha_host, port)
+    Home Assistant addresses commands to wherever the broadcasts appeared to
+    come from, which is this host. A serial not yet seen is broadcast on the
+    purifiers' network instead; every device receives it and ignores a serial
+    that is not its own.
+    """
+    destination = known.get(serial or "")
+    if destination is None:
+        destination = "255.255.255.255"
+        logger.warning("Command for unknown %s, broadcasting instead", serial)
+
+    try:
+        await asyncio.get_running_loop().sock_sendto(sock, data, (destination, port))
+    except OSError as err:
+        logger.warning("Could not deliver command to %s: %s", serial, err)
+        return False
+
+    logger.info("Command for %s -> %s", serial, destination)
+    return True
+
+
+async def deliver_state(
+    sock: socket.socket, data: bytes, source: str, ha_host: str, port: int
+) -> bool:
+    """Pass a purifier's state broadcast to Home Assistant."""
+    try:
+        await asyncio.get_running_loop().sock_sendto(sock, data, (ha_host, port))
+    except OSError as err:
+        logger.warning("Could not forward from %s: %s", source, err)
+        return False
+    return True
+
+
+async def forward(iface: str, ha_host: str, port: int) -> None:
+    """Carry state to Home Assistant and commands back to the purifiers."""
+    sock = make_listener(iface, port)
+    mine = local_addresses()
+    loop = asyncio.get_running_loop()
+
+    known: dict[str, str] = {}  # serial -> the purifier's address
+    to_ha = to_devices = 0
+
+    logger.info(
+        "Listening on %s:%d; state goes to %s, commands come back", iface, port, ha_host
+    )
 
     try:
         while True:
             try:
-                data, addr = await loop.sock_recvfrom(listener, 4096)
+                data, addr = await loop.sock_recvfrom(sock, 4096)
             except (BlockingIOError, ConnectionError):
                 await asyncio.sleep(0.05)
                 continue
@@ -119,27 +164,30 @@ async def forward(iface: str, ha_host: str, port: int) -> None:
                 await asyncio.sleep(1)
                 continue
 
-            if addr[0] in mine:
+            source = addr[0]
+            if source in mine:
                 continue
 
-            try:
-                await loop.sock_sendto(sender, data, destination)
-            except OSError as err:
-                logger.warning("Could not forward from %s: %s", addr[0], err)
+            serial, is_command = read_packet(data)
+
+            if is_command:
+                to_devices += await deliver_command(sock, data, serial, known, port)
                 continue
 
-            carried += 1
-            source = describe(data, addr[0])
-            if source not in seen:
-                seen.add(source)
-                logger.info("Forwarding for %s", source)
-            elif carried % 100 == 0:
-                logger.info("Forwarded %d packets (latest from %s)", carried, source)
-            logger.debug("%s -> %s (%d bytes)", source, ha_host, len(data))
+            if serial and known.get(serial) != source:
+                known[serial] = source
+                logger.info("Forwarding for %s (%s)", source, serial)
+
+            to_ha += await deliver_state(sock, data, source, ha_host, port)
+            if to_ha and to_ha % 200 == 0:
+                logger.info(
+                    "%d state packets forwarded, %d commands delivered",
+                    to_ha,
+                    to_devices,
+                )
     finally:
-        listener.close()
-        sender.close()
-        logger.info("Stopped after forwarding %d packets", carried)
+        sock.close()
+        logger.info("Stopped after %d state packets and %d commands", to_ha, to_devices)
 
 
 def parse_args() -> argparse.Namespace:
@@ -157,12 +205,12 @@ def parse_args() -> argparse.Namespace:
         help="Address of the Home Assistant host to forward to",
     )
     parser.add_argument(
-        "--port", type=int, default=DEFAULT_PORT,
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
         help=f"UDP port (default: {DEFAULT_PORT})",
     )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Log every packet"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Log every packet")
     return parser.parse_args()
 
 
