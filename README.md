@@ -3,9 +3,10 @@
 [![HACS Validate](https://github.com/dn5qMDW3/briiv/actions/workflows/validate.yml/badge.svg)](https://github.com/dn5qMDW3/briiv/actions/workflows/validate.yml)
 
 Custom Home Assistant integration for [Briiv](https://briiv.com/) air purifiers.
-Talks to them directly over UDP on your own network -- no account, no cloud --
-or through a Briiv account when they sit on a different subnet from Home
-Assistant and their broadcasts cannot reach it.
+
+Connects locally over UDP, needing no account and no internet. Purifiers on a
+different subnet from Home Assistant can be reached through a Briiv account
+instead, since their broadcasts never arrive.
 
 Based on [Briiv_HA](https://github.com/FiveCreate/Briiv_HA) by
 [@FiveCreate](https://github.com/FiveCreate), which worked out the local UDP
