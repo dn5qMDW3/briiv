@@ -9,7 +9,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import BriivConfigEntry, is_cloud_entry
-from .const import CLOUD_SENSOR_TYPES, SENSOR_TYPES, BriivSensorEntityDescription
+from .const import (
+    CLOUD_AIR_QUALITY_KEYS,
+    CLOUD_SENSOR_TYPES,
+    SENSOR_TYPES,
+    BriivSensorEntityDescription,
+)
 from .coordinator import BriivCloudCoordinator
 from .entity import BriivCloudEntity, BriivEntity
 
@@ -24,13 +29,15 @@ async def async_setup_entry(
         coordinator = entry.runtime_data
         if TYPE_CHECKING:
             assert isinstance(coordinator, BriivCloudCoordinator)
-        # Offline devices send only their filters and firmware, so which
-        # fields are present says nothing about which sensors a device has.
-        # Create them all; each reports nothing until its device is heard from.
+        # Every device reports its fan, filters and boost. The air quality
+        # readings come from the Pro's sensor suite, so they are added only for
+        # a device that actually sends them.
         async_add_entities(
             BriivCloudSensor(coordinator, serial, description)
-            for serial in coordinator.data or {}
+            for serial, device in (coordinator.data or {}).items()
             for description in CLOUD_SENSOR_TYPES
+            if description.key not in CLOUD_AIR_QUALITY_KEYS
+            or any(key in device for key in CLOUD_AIR_QUALITY_KEYS)
         )
         return
 

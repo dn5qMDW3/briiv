@@ -209,6 +209,13 @@ def _cloud_deadline(value: Any) -> datetime | None:
 # Only a device that is online sends readings at all; an offline one reports
 # just its filters and firmware. Sensors are created for every device
 # regardless, and report nothing until their device is heard from.
+# Readings only the Pro's sensor suite produces. A standard Briiv has no such
+# hardware and never sends these, so creating them for one would leave a row of
+# entities that can never have a value.
+CLOUD_AIR_QUALITY_KEYS: Final = frozenset(
+    {"DTe", "DHu", "DPo", "DPt", "DPf", "DPe", "DCo", "DVo", "DNo"}
+)
+
 CLOUD_SENSOR_TYPES: tuple[BriivSensorEntityDescription, ...] = (
     BriivSensorEntityDescription(
         key="DTe",

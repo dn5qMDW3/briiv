@@ -117,15 +117,12 @@ class BriivCloudEntity(CoordinatorEntity["BriivCloudCoordinator"]):
 
     @property
     def available(self) -> bool:
-        """Return whether the device is currently connected.
+        """Return whether the account still reports this device.
 
-        The account keeps reporting a purifier that has dropped off wifi, but
-        its readings stop updating, so presenting them as current would be
-        misleading. The cloud signals this with a "wifi" field of 0.
+        The payload's "wifi" field is not a connectivity flag: a standard Briiv
+        reports 0 there and is still reachable and controllable through the
+        cloud, because only the Pro reports a signal strength at all. Treating
+        it as an online marker made every standard unit permanently
+        unavailable, so presence in the account is what counts here.
         """
-        device = self.device
-        if not device:
-            return False
-        if "wifi" in device and not device["wifi"]:
-            return False
-        return super().available
+        return super().available and bool(self.device)

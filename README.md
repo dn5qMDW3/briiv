@@ -96,9 +96,9 @@ A cloud connection exposes the fan, temperature, humidity, PM1, PM2.5, PM4,
 PM10, CO2, VOC index, NOx index, the three filters (coconut, matrix and moss)
 and the boost end time.
 
-Readings only arrive while a purifier is connected to wifi. An offline one
-still reports its filters, so its sensors are shown as unavailable rather than
-presenting a stale reading as current.
+The air quality readings come from the Pro's sensor suite. A standard Briiv
+has no such hardware, so it gets the fan, the three filters and the boost end
+time, and no air quality entities are created for it.
 
 Boost is available on a local connection only. The cloud reports when a boost
 ends but the field that starts one has not been confirmed, and sending a
