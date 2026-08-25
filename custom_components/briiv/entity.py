@@ -107,6 +107,8 @@ class BriivCloudEntity(CoordinatorEntity["BriivCloudCoordinator"]):
         self._attr_device_info = build_device_info(
             serial, cloud_is_pro(device), cloud_device_name(device)
         )
+        if firmware := device.get("firmwareVersion"):
+            self._attr_device_info["sw_version"] = str(firmware)
 
     @property
     def device(self) -> dict[str, Any]:
@@ -115,5 +117,15 @@ class BriivCloudEntity(CoordinatorEntity["BriivCloudCoordinator"]):
 
     @property
     def available(self) -> bool:
-        """Return whether the account still reports this device."""
-        return super().available and bool(self.device)
+        """Return whether the device is currently connected.
+
+        The account keeps reporting a purifier that has dropped off wifi, but
+        its readings stop updating, so presenting them as current would be
+        misleading. The cloud signals this with a "wifi" field of 0.
+        """
+        device = self.device
+        if not device:
+            return False
+        if "wifi" in device and not device["wifi"]:
+            return False
+        return super().available

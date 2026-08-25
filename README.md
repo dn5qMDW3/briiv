@@ -8,7 +8,7 @@ Originally created by [@FiveCreate](https://github.com/FiveCreate) ([Briiv_HA](h
 
 ## Features
 
-- **Two ways to connect**: locally over UDP (no account, no cloud) or through a Briiv account (works away from home)
+- **Two ways to connect**: locally over UDP (no account, no cloud) or through a Briiv account, for purifiers on a different subnet
 - **Fan control**: Power on/off, fan speed (25/50/75/100%), and boost mode
 - **Sensors**: Temperature, humidity, PM1, PM2.5, PM4, PM10, CO2, VOC index, NOx index, and boost end time
 - **Auto-discovery**: Finds Briiv devices on your local network
@@ -45,8 +45,8 @@ no internet, but only sees devices on the same network segment.
 
 **Briiv account** — sign in with the email address you use in the Briiv app.
 Briiv emails a 6 digit code; enter it and every purifier on the account is
-added. This works from anywhere, including when the purifiers are on a
-different subnet from Home Assistant.
+added. Use this when the purifiers sit on a different subnet from Home
+Assistant, so their broadcasts never reach it.
 
 Both can be used together: a purifier added twice appears as one device in Home
 Assistant, with a separate set of entities per connection.
@@ -76,16 +76,17 @@ emails a fresh code. Each code is only valid for a few minutes.
 
 ### Cloud entities
 
-A cloud connection currently exposes the fan, CO2, filter life, and the boost
-end time. The cloud names its fields differently from the local broadcast and
-they are not all mapped yet; the remaining sensors are available on a local
-connection. Boost is likewise local-only for now, because the field that starts
-a boost has not been confirmed and guessing it could send the wrong command.
+A cloud connection exposes the fan, temperature, humidity, PM1, PM2.5, PM4,
+PM10, CO2, VOC index, NOx index, the three filters (coconut, matrix and moss)
+and the boost end time.
 
-If you would like the missing cloud sensors mapped, download diagnostics from
-the cloud entry (**Settings > Devices & Services > Briiv > ... > Download
-diagnostics**): it includes the raw device payload with identifying values
-removed.
+Readings only arrive while a purifier is connected to wifi. An offline one
+still reports its filters, so its sensors are shown as unavailable rather than
+presenting a stale reading as current.
+
+Boost is available on a local connection only. The cloud reports when a boost
+ends but the field that starts one has not been confirmed, and sending a
+guessed command is not worth the risk.
 
 ### About the CO2, VOC and NOx readings
 

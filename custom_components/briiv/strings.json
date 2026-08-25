@@ -10,7 +10,9 @@
       "voc": { "name": "VOC index" },
       "carbon_dioxide": { "name": "CO2" },
       "nitrogen_oxides": { "name": "NOx index" },
-      "filter_life": { "name": "Filter remaining" },
+      "coconut_filter": { "name": "Coconut filter" },
+      "matrix_filter": { "name": "Matrix filter" },
+      "moss_filter": { "name": "Moss filter" },
       "boost_end_time": { "name": "Boost ends" }
     }
   },
@@ -22,7 +24,7 @@
         "description": "Choose how Home Assistant should reach your purifiers.",
         "menu_options": {
           "local": "On this network (no account needed)",
-          "cloud": "Briiv account (works away from home)"
+          "cloud": "Briiv account (for devices on a different subnet)"
         }
       },
       "local": {
@@ -49,7 +51,7 @@
       },
       "cloud": {
         "title": "Sign in to Briiv",
-        "description": "Briiv will email you a 6 digit code. Every purifier on the account is added.",
+        "description": "Use this when your purifiers are on a different subnet from Home Assistant, so their broadcasts cannot reach it. Briiv will email you a 6 digit code, and every purifier on the account is added.",
         "data": {
           "email": "Email address"
         },

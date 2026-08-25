@@ -24,11 +24,13 @@ async def async_setup_entry(
         coordinator = entry.runtime_data
         if TYPE_CHECKING:
             assert isinstance(coordinator, BriivCloudCoordinator)
+        # Offline devices send only their filters and firmware, so which
+        # fields are present says nothing about which sensors a device has.
+        # Create them all; each reports nothing until its device is heard from.
         async_add_entities(
             BriivCloudSensor(coordinator, serial, description)
-            for serial, device in (coordinator.data or {}).items()
+            for serial in coordinator.data or {}
             for description in CLOUD_SENSOR_TYPES
-            if description.key in device
         )
         return
 

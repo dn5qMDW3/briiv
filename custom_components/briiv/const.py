@@ -187,25 +187,107 @@ def _cloud_deadline(value: Any) -> datetime | None:
     # are milliseconds. Anything past the year 5138 in seconds is millis.
     if moment > 1e11:
         moment /= 1000
-    return dt_util.utc_from_timestamp(moment)
+
+    deadline = dt_util.utc_from_timestamp(moment)
+    # The device keeps the last boost's end time after it has passed. Reporting
+    # a stale moment as though a boost were pending is worse than nothing.
+    if deadline <= dt_util.utcnow():
+        return None
+    return deadline
 
 
-# Sensors for a cloud entry. The cloud payload uses different field names from
-# the local broadcast and has not been fully catalogued; these are the fields
-# confirmed so far. Any others show up in the integration's diagnostics, which
-# dump the raw device object, and can be added here.
+# Sensors for a cloud entry.
+#
+# The cloud payload names fields differently from the local broadcast. A "D"
+# prefix marks the current reading; the unprefixed name holds a comma joined
+# history of the same measurement, so the D fields are what a sensor wants.
+#
+# The four particulate fields spell out their size: Po=one, Pt=two (2.5),
+# Pf=four, Pe=ten. DPo reads consistently lower than the other three, which is
+# what PM1 should do, and the history arrays agree.
+#
+# Only a device that is online sends readings at all; an offline one reports
+# just its filters and firmware. Sensors are created for every device
+# regardless, and report nothing until their device is heard from.
 CLOUD_SENSOR_TYPES: tuple[BriivSensorEntityDescription, ...] = (
     BriivSensorEntityDescription(
-        key="Co",
+        key="DTe",
+        translation_key="temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    BriivSensorEntityDescription(
+        key="DHu",
+        translation_key="humidity",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.HUMIDITY,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    BriivSensorEntityDescription(
+        key="DPo",
+        translation_key="pm1",
+        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        device_class=SensorDeviceClass.PM1,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    BriivSensorEntityDescription(
+        key="DPt",
+        translation_key="pm2_5",
+        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        device_class=SensorDeviceClass.PM25,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    BriivSensorEntityDescription(
+        key="DPf",
+        translation_key="pm4",
+        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        device_class=SensorDeviceClass.PM4,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    BriivSensorEntityDescription(
+        key="DPe",
+        translation_key="pm10",
+        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        device_class=SensorDeviceClass.PM10,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    BriivSensorEntityDescription(
+        key="DCo",
         translation_key="carbon_dioxide",
         native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
         device_class=SensorDeviceClass.CO2,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=_mean_samples,
+    ),
+    BriivSensorEntityDescription(
+        key="DVo",
+        translation_key="voc",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+    BriivSensorEntityDescription(
+        key="DNo",
+        translation_key="nitrogen_oxides",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
     ),
     BriivSensorEntityDescription(
         key="coconutFilter",
-        translation_key="filter_life",
+        translation_key="coconut_filter",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+    BriivSensorEntityDescription(
+        key="matrixFilter",
+        translation_key="matrix_filter",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+    BriivSensorEntityDescription(
+        key="mossFilter",
+        translation_key="moss_filter",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
