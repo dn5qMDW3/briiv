@@ -49,6 +49,7 @@ class BriivCloudCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
     async def _async_setup(self) -> None:
         """Open the connection and wait for the first device list."""
         self.api.register_callback(self._handle_push)
+        self.api.on_auth_failed = self._handle_auth_failed
 
         try:
             await self.api.async_connect()
@@ -65,6 +66,10 @@ class BriivCloudCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             raise ConfigEntryNotReady(
                 "The Briiv service did not send any devices"
             ) from err
+
+    def _handle_auth_failed(self) -> None:
+        """Ask the user to sign in again after the stored session expired."""
+        self.config_entry.async_start_reauth(self.hass)
 
     def _handle_push(self, devices: dict[str, dict[str, Any]]) -> None:
         """Publish a pushed device set to the entities."""

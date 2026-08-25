@@ -186,6 +186,9 @@ class BriivCloudAPI:
         self._session = session
         self._refresh_token = refresh_token
         self._on_token_rotated = on_token_rotated
+        # Set by the coordinator so an expired sign-in can ask the user for a
+        # new code instead of the connection quietly giving up.
+        self.on_auth_failed: Callable[[], None] | None = None
         self._socket: aiohttp.ClientWebSocketResponse | None = None
         self._listener: asyncio.Task[None] | None = None
         self._callbacks: list[DeviceCallback] = []
@@ -322,9 +325,12 @@ class BriivCloudAPI:
                 self._socket = await self._async_open_socket()
                 await self._async_send({"action": "fetchDevices"})
             except BriivCloudAuthError:
-                # Nothing to retry: the user has to sign in again.
+                # Retrying cannot help; the user has to sign in again.
                 LOGGER.warning("Briiv sign-in expired; reauthentication required")
-                raise
+                self._closing = True
+                if self.on_auth_failed:
+                    self.on_auth_failed()
+                return
             except BriivCloudError as err:
                 LOGGER.debug("Reconnect failed: %s", err)
 
