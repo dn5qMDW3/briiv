@@ -5,8 +5,8 @@
   "config_flow": true,
   "documentation": "https://github.com/dn5qMDW3/briiv",
   "integration_type": "device",
-  "iot_class": "local_push",
+  "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/dn5qMDW3/briiv/issues",
   "requirements": [],
-  "version": "1.3.1"
+  "version": "1.3.2"
 }
